@@ -22,7 +22,7 @@ const nextConfig: NextConfig = {
   serverExternalPackages: [
     'esbuild',
     '@esbuild/darwin-arm64',
-    '@open-mercato/cli',
+    '@open-mercato/cli'
   ],
 }
 

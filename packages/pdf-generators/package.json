@@ -54,7 +54,8 @@
     }
   },
   "dependencies": {
-    "@open-mercato/ui": "0.4.9-canary-1f829e1484"
+    "@open-mercato/ui": "0.4.9-canary-1f829e1484",
+    "@react-pdf/renderer": "4.3.0"
   },
   "peerDependencies": {
     "@open-mercato/shared": "0.4.9-canary-1f829e1484",
