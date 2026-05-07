@@ -1,30 +1,8 @@
-interface TemplateRegistryEntry {
-  id: string
-  label: string
-  description: string
-  load: () => Promise<React.ComponentType<{ data: Record<string, unknown> }>>
-}
+import { REGISTRY } from '../config/registry'
+import type { TemplateMeta, PdfTemplateDefinition } from './interfaces'
 
-const REGISTRY: TemplateRegistryEntry[] = [
-  {
-    id: 'codee-offer',
-    label: 'Codee Sales Offer',
-    description: 'Profesjonalna oferta handlowa w stylu Codee. Strona tytułowa + tabela pozycji.',
-    load: () => import('../templates/codee-offer').then((m) => m.CodeeOfferDocument as unknown as React.ComponentType<{ data: Record<string, unknown> }>),
-  },
-]
-
-export type TemplateId = (typeof REGISTRY)[number]['id']
-
-export interface TemplateMeta {
-  id: string
-  label: string
-  description: string
-}
-
-export interface PdfTemplateDefinition extends TemplateMeta {
-  component: React.ComponentType<{ data: Record<string, unknown> }>
-}
+export type { TemplateMeta, PdfTemplateDefinition }
+export type { TemplateId } from './types'
 
 export function getTemplateMetas(): TemplateMeta[] {
   return REGISTRY.map(({ id, label, description }) => ({ id, label, description }))

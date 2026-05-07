@@ -96,7 +96,7 @@ export function PdfGeneratorDrawer({ open, onClose, data, templateIds }: PdfGene
           {step === 'preview' && selected && (
             <>
               <div className="flex-1 overflow-hidden bg-muted/30">
-                <PdfPreview data={data} />
+                <PdfPreview templateId={selected.id} data={data} />
               </div>
               <div className="border-t bg-background px-6 py-4">
                 <DownloadButton templateId={selected.id} data={data} />

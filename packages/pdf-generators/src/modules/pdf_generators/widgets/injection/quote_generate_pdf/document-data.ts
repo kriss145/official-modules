@@ -1,7 +1,6 @@
-import type { PdfDocumentData } from '../../../templates/codee-offer/types'
 import type { QuoteWidgetRecord } from './types'
 
-export function toDocumentData(record: QuoteWidgetRecord): PdfDocumentData {
+export function toDocumentData(record: QuoteWidgetRecord): Record<string, unknown> {
   const customer = record.customerSnapshot?.customer
   const contact = record.customerSnapshot?.contact
   const billing = record.billingAddressSnapshot
