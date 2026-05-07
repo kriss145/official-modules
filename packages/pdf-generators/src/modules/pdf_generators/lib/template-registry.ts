@@ -26,6 +26,14 @@ export function registerExternalTemplates(entries: TemplateRegistryEntry[]): voi
   writeGlobal(EXTERNAL_KEY, entries)
 }
 
+export function getInternalTemplates(): TemplateRegistryEntry[] {
+  return readGlobal<TemplateRegistryEntry>(INTERNAL_KEY)
+}
+
+export function getExternalTemplates(): TemplateRegistryEntry[] {
+  return readGlobal<TemplateRegistryEntry>(EXTERNAL_KEY)
+}
+
 export function getAllTemplates(): TemplateRegistryEntry[] {
-  return [...readGlobal<TemplateRegistryEntry>(INTERNAL_KEY), ...readGlobal<TemplateRegistryEntry>(EXTERNAL_KEY)]
+  return [...getInternalTemplates(), ...getExternalTemplates()]
 }

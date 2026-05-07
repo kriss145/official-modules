@@ -1,6 +1,11 @@
 import type { OpenApiRouteDoc } from '@open-mercato/shared/lib/openapi'
 import { NextResponse } from 'next/server'
-import { getTemplateMetas } from '../../../lib/templates'
+import { getInternalTemplates, getExternalTemplates } from '../../../lib/template-registry'
+import type { TemplateMeta } from '../../../lib/interfaces'
+
+function toMeta({ id, label, description }: TemplateMeta): TemplateMeta {
+  return { id, label, description }
+}
 
 export const metadata = {
   path: '/pdf-generators/templates',
@@ -8,15 +13,18 @@ export const metadata = {
 }
 
 export async function GET() {
-  return NextResponse.json(getTemplateMetas())
+  return NextResponse.json({
+    internal: getInternalTemplates().map(toMeta),
+    external: getExternalTemplates().map(toMeta),
+  })
 }
 
 export const openApi: OpenApiRouteDoc = {
   methods: {
     GET: {
-      summary: 'List available PDF templates',
+      summary: 'List available PDF templates grouped by source',
       responses: [
-        { status: 200, description: 'Array of template metadata' },
+        { status: 200, description: '{ internal: TemplateMeta[], external: TemplateMeta[] }' },
         { status: 401, description: 'Unauthorized' },
       ],
     },
