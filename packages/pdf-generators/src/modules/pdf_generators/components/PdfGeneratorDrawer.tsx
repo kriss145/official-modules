@@ -49,8 +49,8 @@ export function PdfGeneratorDrawer({ open, onClose, data, templateIds }: PdfGene
 
   return (
     <Dialog open={open} onOpenChange={(v) => !v && handleClose()}>
-      <DialogContent className="flex h-[90vh] max-w-4xl flex-col gap-0 p-0">
-        <DialogHeader className="border-b px-6 py-4">
+      <DialogContent className="flex h-screen w-screen max-w-none sm:h-screen sm:max-w-none sm:rounded-none flex-col gap-0 p-0 translate-x-0 translate-y-0 sm:translate-x-0 sm:translate-y-0 sm:inset-0 sm:top-0 sm:left-0">
+        <DialogHeader className="border-b px-2 py-4">
           <div className="flex items-center gap-3">
             {step === 'preview' && (
               <Button variant="ghost" size="icon" onClick={handleBack} className="-ml-1">

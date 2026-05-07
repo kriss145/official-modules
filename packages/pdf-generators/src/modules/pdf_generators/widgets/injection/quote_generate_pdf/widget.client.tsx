@@ -5,7 +5,7 @@ import { FileText } from 'lucide-react'
 import { Button } from '@open-mercato/ui/primitives/button'
 import type { InjectionWidgetComponentProps } from '@open-mercato/shared/modules/widgets/injection'
 import { useT } from '@open-mercato/shared/lib/i18n/context'
-import { PdfGeneratorDrawer } from '../../PdfGeneratorDrawer'
+import { PdfGeneratorDrawer } from '../../../components/PdfGeneratorDrawer'
 import type { QuoteWidgetContext } from './types'
 import { toDocumentData } from './document-data'
 
