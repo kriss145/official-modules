@@ -1,33 +1,57 @@
 import React from 'react'
-import { renderToBuffer, Font } from '@react-pdf/renderer'
-import { fileURLToPath } from 'url'
-import path from 'path'
+import { renderToBuffer, type DocumentProps } from '@react-pdf/renderer'
 import type { OpenApiRouteDoc } from '@open-mercato/shared/lib/openapi'
-import { MyDocument } from '../../../widgets/MyDocument'
 import { NextResponse } from 'next/server'
+import { loadTemplate, type TemplateId } from '../../../lib/templates'
+import type { PdfDocumentData } from '../../../lib/types'
 
 export const metadata = {
   path: '/pdf-generators/generate',
   POST: { requireAuth: true, requireFeatures: ['pdf_generators.view'] },
 }
 
-export async function POST(_request: Request) {
-  const buffer = await renderToBuffer(React.createElement(MyDocument))
+export async function POST(request: Request) {
+  let body: { template_id: TemplateId; data: PdfDocumentData }
+
+  try {
+    body = await request.json()
+  } catch {
+    return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
+  }
+
+  const { template_id, data } = body
+
+  if (!template_id || !data) {
+    return NextResponse.json({ error: 'Missing template_id or data' }, { status: 400 })
+  }
+
+  let template
+  try {
+    template = await loadTemplate(template_id)
+  } catch {
+    return NextResponse.json({ error: `Unknown template: ${template_id}` }, { status: 400 })
+  }
+
+  const element = React.createElement(template.component, { data }) as React.ReactElement<DocumentProps>
+  const buffer = await renderToBuffer(element)
 
   return new NextResponse(new Uint8Array(buffer), {
     headers: {
       'Content-Type': 'application/pdf',
-      'Content-Disposition': 'attachment; filename="document.pdf"',
+      'Content-Disposition': `attachment; filename="${template_id}.pdf"`,
     },
   })
 }
 
 export const openApi: OpenApiRouteDoc = {
-  GET: {
-    summary: 'Generate PDF document',
-    responses: {
-      200: { description: 'PDF file stream' },
-      401: { description: 'Unauthorized' },
+  methods: {
+    POST: {
+      summary: 'Generate PDF document',
+      responses: [
+        { status: 200, description: 'PDF file stream' },
+        { status: 400, description: 'Missing or invalid template_id / data' },
+        { status: 401, description: 'Unauthorized' },
+      ],
     },
   },
 }

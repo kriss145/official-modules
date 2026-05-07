@@ -100,7 +100,6 @@ export function PdfGeneratorDrawer({ open, onClose, data }: PdfGeneratorDrawerPr
                 <PdfPreview data={data} />
               </div>
               <div className="border-t bg-background px-6 py-4">
-                {/* <PDFDownloadLink document={<PdfPreview data={data} />} fileName={`${data.document.number}.pdf`}> */}
                 <DownloadButton templateId={selected.id} data={data} />
               </div>
             </>
@@ -119,7 +118,11 @@ function DownloadButton({ templateId, data }: { templateId: string; data: PdfDoc
     setLoading(true)
 
     try {
-      const res = await fetch('/api/pdf-generators/generate', { method: 'POST' })
+      const res = await fetch('/api/pdf-generators/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ template_id: templateId, data }),
+      })
       if (!res.ok) throw new Error('Generation failed')
       const blob = await res.blob()
       const url = URL.createObjectURL(blob)
