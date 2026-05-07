@@ -1,4 +1,3 @@
-import React from 'react'
 import { Document } from '@react-pdf/renderer'
 import './theme'
 import { CoverPage } from './CoverPage'
@@ -7,7 +6,7 @@ import type { PdfDocumentData } from './types'
 
 export function CodeeOfferDocument({ data }: { data: PdfDocumentData }) {
   return (
-    <Document>
+    <Document style={{ fontFamily: 'Inter' }}>
       <CoverPage data={data} />
       <QuotePage data={data} />
     </Document>
