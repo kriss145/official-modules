@@ -11,7 +11,6 @@ import {
   DialogDescription,
 } from '@open-mercato/ui/primitives/dialog'
 import { useT } from '@open-mercato/shared/lib/i18n/context'
-import { getTemplateMetas } from '../lib/templates'
 import type { TemplateMeta } from '../lib/templates'
 import { PdfPreview } from './PdfPreview'
 
@@ -26,8 +25,16 @@ interface PdfGeneratorDrawerProps {
 
 export function PdfGeneratorDrawer({ open, onClose, data, templateIds }: PdfGeneratorDrawerProps) {
   const t = useT()
-  const allTemplates = getTemplateMetas()
-  const templates = templateIds ? allTemplates.filter((t) => templateIds.includes(t.id)) : allTemplates
+  const [allTemplates, setAllTemplates] = React.useState<TemplateMeta[]>([])
+
+  React.useEffect(() => {
+    fetch('/api/pdf-generators/templates')
+      .then((r) => r.json())
+      .then((data) => setAllTemplates(Array.isArray(data) ? data : []))
+      .catch(() => {})
+  }, [])
+
+  const templates = templateIds ? allTemplates.filter((tpl) => templateIds.includes(tpl.id)) : allTemplates
   const [step, setStep] = React.useState<Step>('select')
   const [selected, setSelected] = React.useState<TemplateMeta | null>(null)
 
@@ -74,7 +81,7 @@ export function PdfGeneratorDrawer({ open, onClose, data, templateIds }: PdfGene
           {step === 'select' && (
             <div className="flex-1 overflow-y-auto p-6">
               <div className="grid gap-3">
-                {templates.map((template) => (
+                {templates.map((template: TemplateMeta) => (
                   <button
                     key={template.id}
                     onClick={() => handleSelectTemplate(template)}

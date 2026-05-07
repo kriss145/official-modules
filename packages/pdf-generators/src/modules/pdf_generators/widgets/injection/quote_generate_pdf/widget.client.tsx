@@ -31,7 +31,7 @@ export default function QuoteGeneratePdfWidget({ context }: InjectionWidgetCompo
         open={open}
         onClose={() => setOpen(false)}
         data={data}
-        templateIds={['sales-offer']}
+        templateIds={['sales-offer', 'example-invoice']}
       />
     </>
   )

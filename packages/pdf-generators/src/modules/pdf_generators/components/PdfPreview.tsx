@@ -1,9 +1,6 @@
 'use client'
 
 import React from 'react'
-import { PDFViewer } from '@react-pdf/renderer'
-import { loadTemplate } from '../lib/templates'
-import type { PdfTemplateDefinition } from '../lib/templates'
 
 interface PdfPreviewProps {
   templateId: string
@@ -11,17 +8,29 @@ interface PdfPreviewProps {
 }
 
 export function PdfPreview({ templateId, data }: PdfPreviewProps) {
-  const [template, setTemplate] = React.useState<PdfTemplateDefinition | null>(null)
+  const [url, setUrl] = React.useState<string | null>(null)
 
   React.useEffect(() => {
-    loadTemplate(templateId).then(setTemplate)
-  }, [templateId])
+    let objectUrl: string
 
-  if (!template) return null
+    fetch('/api/pdf-generators/generate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ template_id: templateId, data }),
+    })
+      .then((r) => r.blob())
+      .then((blob) => {
+        objectUrl = URL.createObjectURL(blob)
+        setUrl(objectUrl)
+      })
+      .catch(() => {})
 
-  return (
-    <PDFViewer width="100%" height="100%" showToolbar={false}>
-      <template.component data={data} />
-    </PDFViewer>
-  )
+    return () => {
+      if (objectUrl) URL.revokeObjectURL(objectUrl)
+    }
+  }, [templateId, data])
+
+  if (!url) return null
+
+  return <object data={url} type="application/pdf" width="100%" height="100%" />
 }

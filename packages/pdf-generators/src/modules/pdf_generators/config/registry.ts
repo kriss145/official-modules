@@ -1,6 +1,7 @@
 import type { TemplateRegistryEntry } from '../lib/interfaces'
+import { registerInternalTemplates } from '../lib/template-registry'
 
-export const REGISTRY: TemplateRegistryEntry[] = [
+const BUILT_IN_TEMPLATES: TemplateRegistryEntry[] = [
   {
     id: 'sales-offer',
     label: 'Sales Offer',
@@ -8,3 +9,8 @@ export const REGISTRY: TemplateRegistryEntry[] = [
     load: () => import('../templates/sales-offer').then((m) => m.SalesOfferDocument as unknown as React.ComponentType<{ data: Record<string, unknown> }>),
   },
 ]
+
+registerInternalTemplates(BUILT_IN_TEMPLATES)
+
+// Keep REGISTRY export for TemplateId type derivation
+export const REGISTRY = BUILT_IN_TEMPLATES
