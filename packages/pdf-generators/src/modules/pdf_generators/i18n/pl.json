@@ -1,0 +1,10 @@
+{
+  "pdf_generators.page.title": "Generatory PDF",
+  "pdf_generators.page.description": "Generuje dokumenty PDF dla ofert handlowych.",
+  "pdf_generators.page.cardTitle": "Moduł jest poprawnie podłączony",
+  "pdf_generators.template.select": "Wybierz szablon",
+  "pdf_generators.preview.title": "Podgląd dokumentu",
+  "pdf_generators.generate.button": "Pobierz PDF",
+  "pdf_generators.generate.generating": "Generowanie...",
+  "pdf_generators.generate.open": "Generuj PDF"
+}

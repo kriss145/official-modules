@@ -1,0 +1,10 @@
+{
+  "pdf_generators.page.title": "Generadores de PDF",
+  "pdf_generators.page.description": "Genera documentos PDF de ventas.",
+  "pdf_generators.page.cardTitle": "El módulo está correctamente conectado",
+  "pdf_generators.template.select": "Seleccionar plantilla",
+  "pdf_generators.preview.title": "Vista previa del documento",
+  "pdf_generators.generate.button": "Descargar PDF",
+  "pdf_generators.generate.generating": "Generando...",
+  "pdf_generators.generate.open": "Generar PDF"
+}

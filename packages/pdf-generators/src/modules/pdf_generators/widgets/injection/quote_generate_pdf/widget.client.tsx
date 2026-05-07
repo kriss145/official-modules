@@ -24,14 +24,14 @@ export default function QuoteGeneratePdfWidget({ context }: InjectionWidgetCompo
     <>
       <Button variant="outline" size="sm" onClick={() => setOpen(true)}>
         <FileText className="mr-2 h-4 w-4" />
-        {t('pdf_generators.generate.button', 'Generuj PDF')}
+        {t('pdf_generators.generate.open', 'Generuj PDF')}
       </Button>
 
       <PdfGeneratorDrawer
         open={open}
         onClose={() => setOpen(false)}
         data={data}
-        templateIds={['codee-offer']}
+        templateIds={['sales-offer']}
       />
     </>
   )

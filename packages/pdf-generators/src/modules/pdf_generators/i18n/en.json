@@ -1,0 +1,10 @@
+{
+  "pdf_generators.page.title": "PDF Generators",
+  "pdf_generators.page.description": "Generates PDF sales documents.",
+  "pdf_generators.page.cardTitle": "Module is wired correctly",
+  "pdf_generators.template.select": "Select template",
+  "pdf_generators.preview.title": "Document preview",
+  "pdf_generators.generate.button": "Download PDF",
+  "pdf_generators.generate.generating": "Generating...",
+  "pdf_generators.generate.open": "Generate PDF"
+}
