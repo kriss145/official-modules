@@ -32,10 +32,3 @@ export interface PdfDocumentData {
   }
   notes?: string
 }
-
-export interface PdfTemplateDefinition {
-  id: string
-  label: string
-  description: string
-  component: React.ComponentType<{ data: PdfDocumentData }>
-}

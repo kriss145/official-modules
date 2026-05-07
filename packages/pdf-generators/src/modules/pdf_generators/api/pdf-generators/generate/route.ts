@@ -3,7 +3,6 @@ import { renderToBuffer, type DocumentProps } from '@react-pdf/renderer'
 import type { OpenApiRouteDoc } from '@open-mercato/shared/lib/openapi'
 import { NextResponse } from 'next/server'
 import { loadTemplate, type TemplateId } from '../../../lib/templates'
-import type { PdfDocumentData } from '../../../lib/types'
 
 export const metadata = {
   path: '/pdf-generators/generate',
@@ -11,7 +10,7 @@ export const metadata = {
 }
 
 export async function POST(request: Request) {
-  let body: { template_id: TemplateId; data: PdfDocumentData }
+  let body: { template_id: TemplateId; data: Record<string, unknown> }
 
   try {
     body = await request.json()

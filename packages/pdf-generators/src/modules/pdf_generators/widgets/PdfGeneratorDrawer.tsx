@@ -1,7 +1,6 @@
 'use client'
 
 import * as React from 'react'
-import dynamic from 'next/dynamic'
 import { FileText, ChevronLeft, Download } from 'lucide-react'
 import { Button } from '@open-mercato/ui/primitives/button'
 import {
@@ -12,23 +11,23 @@ import {
   DialogDescription,
 } from '@open-mercato/ui/primitives/dialog'
 import { useT } from '@open-mercato/shared/lib/i18n/context'
-import { getTemplateMetas, loadTemplate } from '../lib/templates'
+import { getTemplateMetas } from '../lib/templates'
 import type { TemplateMeta } from '../lib/templates'
-import type { PdfDocumentData } from '../lib/types'
 import { PdfPreview } from './PdfPreview'
-import { PDFDownloadLink } from '@react-pdf/renderer';
 
 type Step = 'select' | 'preview'
 
 interface PdfGeneratorDrawerProps {
   open: boolean
   onClose: () => void
-  data: PdfDocumentData
+  data: Record<string, unknown>
+  templateIds?: string[]
 }
 
-export function PdfGeneratorDrawer({ open, onClose, data }: PdfGeneratorDrawerProps) {
+export function PdfGeneratorDrawer({ open, onClose, data, templateIds }: PdfGeneratorDrawerProps) {
   const t = useT()
-  const templates = getTemplateMetas()
+  const allTemplates = getTemplateMetas()
+  const templates = templateIds ? allTemplates.filter((t) => templateIds.includes(t.id)) : allTemplates
   const [step, setStep] = React.useState<Step>('select')
   const [selected, setSelected] = React.useState<TemplateMeta | null>(null)
 
@@ -110,7 +109,7 @@ export function PdfGeneratorDrawer({ open, onClose, data }: PdfGeneratorDrawerPr
   )
 }
 
-function DownloadButton({ templateId, data }: { templateId: string; data: PdfDocumentData }) {
+function DownloadButton({ templateId, data }: { templateId: string; data: Record<string, unknown> }) {
   const t = useT()
   const [loading, setLoading] = React.useState(false)
 
@@ -128,7 +127,7 @@ function DownloadButton({ templateId, data }: { templateId: string; data: PdfDoc
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = url
-      a.download = `${data.document.number}-${templateId}.pdf`
+      a.download = `${templateId}.pdf`
       a.click()
       URL.revokeObjectURL(url)
     } finally {

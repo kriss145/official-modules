@@ -1,10 +1,9 @@
 'use client'
 
-import type { PdfDocumentData } from '../lib/types'
 import { MyDocument } from './MyDocument'
 
 interface PdfPreviewProps {
-  data: PdfDocumentData
+  data: Record<string, unknown>
 }
 
 export function PdfPreview({ data }: PdfPreviewProps) {

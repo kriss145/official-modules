@@ -1,31 +1,38 @@
-import type { PdfTemplateDefinition } from './types'
+interface TemplateRegistryEntry {
+  id: string
+  label: string
+  description: string
+  load: () => Promise<React.ComponentType<{ data: Record<string, unknown> }>>
+}
 
-export type TemplateId = 'codee-offer'
+const REGISTRY: TemplateRegistryEntry[] = [
+  {
+    id: 'codee-offer',
+    label: 'Codee Sales Offer',
+    description: 'Profesjonalna oferta handlowa w stylu Codee. Strona tytułowa + tabela pozycji.',
+    load: () => import('../templates/codee-offer').then((m) => m.CodeeOfferDocument as unknown as React.ComponentType<{ data: Record<string, unknown> }>),
+  },
+]
+
+export type TemplateId = (typeof REGISTRY)[number]['id']
 
 export interface TemplateMeta {
-  id: TemplateId
+  id: string
   label: string
   description: string
 }
 
-export function getTemplateMetas(): TemplateMeta[] {
-  return [
-    {
-      id: 'codee-offer',
-      label: 'Codee Sales Offer',
-      description: 'Profesjonalna oferta handlowa w stylu Codee. Strona tytułowa + tabela pozycji.',
-    },
-  ]
+export interface PdfTemplateDefinition extends TemplateMeta {
+  component: React.ComponentType<{ data: Record<string, unknown> }>
 }
 
-export async function loadTemplate(id: TemplateId): Promise<PdfTemplateDefinition> {
-  const meta = getTemplateMetas().find((t) => t.id === id)
-  if (!meta) throw new Error(`Unknown template: ${id}`)
+export function getTemplateMetas(): TemplateMeta[] {
+  return REGISTRY.map(({ id, label, description }) => ({ id, label, description }))
+}
 
-  if (id === 'codee-offer') {
-    const { CodeeOfferDocument } = await import('../templates/codee-offer')
-    return { ...meta, component: CodeeOfferDocument }
-  }
-
-  throw new Error(`Template loader not implemented for: ${id}`)
+export async function loadTemplate(id: string): Promise<PdfTemplateDefinition> {
+  const entry = REGISTRY.find((t) => t.id === id)
+  if (!entry) throw new Error(`Unknown template: ${id}`)
+  const component = await entry.load()
+  return { id: entry.id, label: entry.label, description: entry.description, component }
 }
