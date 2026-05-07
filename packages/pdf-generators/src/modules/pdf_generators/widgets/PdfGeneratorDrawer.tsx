@@ -118,11 +118,8 @@ function DownloadButton({ templateId, data }: { templateId: string; data: PdfDoc
   async function handleDownload() {
     setLoading(true)
 
-    // const res = await fetch('/api/pdf-generators/generate', { method: 'GET' })
-
-    // console.log('Response:', res)
     try {
-      const res = await fetch('/api/pdf-generators/generate', { method: 'GET' })
+      const res = await fetch('/api/pdf-generators/generate', { method: 'POST' })
       if (!res.ok) throw new Error('Generation failed')
       const blob = await res.blob()
       const url = URL.createObjectURL(blob)

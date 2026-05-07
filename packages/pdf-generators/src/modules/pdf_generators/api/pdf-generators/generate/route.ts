@@ -8,10 +8,10 @@ import { NextResponse } from 'next/server'
 
 export const metadata = {
   path: '/pdf-generators/generate',
-  GET: { requireAuth: true, requireFeatures: ['pdf_generators.view'] },
+  POST: { requireAuth: true, requireFeatures: ['pdf_generators.view'] },
 }
 
-export async function GET(_request: Request) {
+export async function POST(_request: Request) {
   const buffer = await renderToBuffer(React.createElement(MyDocument))
 
   return new NextResponse(new Uint8Array(buffer), {
