@@ -2,28 +2,31 @@
 
 ## TLDR
 **Key Points:**
-- The `@open-mercato/pdf-generators` module generates personalized PDF documents (sales offers) from data fetched from the `sales` module (Quote).
-- An admin selects a Quote, picks a template, previews the PDF live in the browser, then generates and downloads the final file.
+- The `@open-mercato/pdf-generators` module is a **universal PDF generation engine** — any module in OpenMercato can inject a widget that generates PDFs from its own data.
+- A user clicks "Generate PDF" in any supported view, picks a template, previews the PDF live, then downloads the final file.
+- Quote/Sales is the first supported module; Orders, Invoices, or any other entity can be added independently.
 
 **Scope:**
-- Fetching Quote data via the existing `/api/quotes` API
-- Template registry (code-defined, not database-driven)
-- Live PDF preview with real Quote data (`PDFViewer` client-side)
+- Universal template registry (code-defined, not database-driven) — shared across all modules
+- Data passed directly from widget `context.record` — no separate fetch endpoint
+- Per-widget `toDocumentData()` mapper normalizing module-specific data to template shape
+- Live PDF preview (`PDFViewer` client-side)
 - Final PDF generation via API (server-side `renderToBuffer`)
-- History of generated documents (tenant-scoped)
-- Action widget injected into the Quote detail view in the `sales` module
+- Widget injection pattern reusable for any module and any entity type
 
 **Concerns:**
-- `@react-pdf/renderer` operates client-side (`PDFViewer`) and server-side (`renderToBuffer`) — requires dynamic import with `ssr: false` in Next.js
-- Large documents may render slowly on the server — an async queue or streaming may be needed in a later phase
+- `@react-pdf/renderer` operates client-side (`PDFViewer`) and server-side (`renderToBuffer`) — fonts must be accessible in both environments; solved via base64-encoded `*.generated.ts` font files
+- Large documents may render slowly on the server — async queue may be needed in a later phase
 
 ---
 
 ## Overview
 
-The `pdf_generators` module extends OpenMercato with the ability to generate professional, branded PDF documents from sales data. The entry point is the Quote detail view in the `sales` module — a "Generate PDF" button opens a wizard: template selection → live preview → generate.
+The `pdf_generators` module extends OpenMercato with the ability to generate professional, branded PDF documents from any entity in the system. A "Generate PDF" button can be injected into any detail view — it opens a dialog: template selection → live preview → download.
 
-Templates are defined as React components (JSX) inside the package. Each template is a self-contained component receiving a standardized `PdfDocumentData` object. The list of available templates comes from a registry declared in code.
+Templates are defined as React components (JSX) inside the package. Each template defines its own data shape (`PdfDocumentData` in `types.ts`). The list of available templates comes from a code registry in `config/registry.ts`. Each widget decides which templates it exposes via the `templateIds` prop.
+
+Data flows directly from the widget's `context.record` — no intermediate API fetch. Each widget folder contains a `document-data.ts` file exporting a single `toDocumentData()` function that maps the context record to the template's data shape.
 
 **Market Reference:** Pandadoc, Qwilr, Proposify are the category leaders. Adopted: live preview before generating, client data personalization. Rejected: drag-and-drop editor (excessive complexity for MVP), cloud storage (files returned directly as a stream).
 
@@ -31,10 +34,11 @@ Templates are defined as React components (JSX) inside the package. Each templat
 
 ## Problem Statement
 
-OpenMercato does not offer native PDF document generation. Sales teams must manually create proposals in external tools (Word, Canva, Pandadoc), which:
-- breaks the sales flow (CRM data transcribed by hand),
+OpenMercato does not offer native PDF document generation. Teams must manually create documents in external tools (Word, Canva, Pandadoc), which:
+- breaks workflow continuity (data transcribed by hand from the system),
 - prevents per-tenant branding,
-- leaves no history of generated documents inside the system.
+- leaves no in-system record of generated documents,
+- requires a separate integration per document type (quotes, orders, invoices, contracts).
 
 ---
 
@@ -42,200 +46,178 @@ OpenMercato does not offer native PDF document generation. Sales teams must manu
 
 An external community module (`packages/pdf-generators/`) extending OpenMercato via UMES extension points:
 
-1. **Action widget** injected into the Quote detail view — "Generate PDF" button opens the wizard.
-2. **Backend page** `/backend/pdf-generators` — document history and template overview.
-3. **API routes** inside the module:
-   - `GET /api/pdf-generators/templates` — list available templates
-   - `POST /api/pdf-generators/generate` — generate PDF (server-side `renderToBuffer`)
-   - `GET /api/pdf-generators/documents` — document history
-4. **Live preview** — `PDFViewer` component rendered client-side (dynamic import, `ssr: false`).
-5. **`PdfGeneratedDocument` entity** — history of generated files (tenant-scoped).
+1. **Action widgets** — injected into any module's detail view via `injection-table.ts`. Each widget is self-contained and provides its own `toDocumentData()` mapper.
+2. **Backend page** `/backend/pdf-generators` — template overview.
+3. **Single API route**:
+   - `POST /api/pdf-generators/generate` — accepts `{ template_id, data }`, returns PDF stream
+4. **Live preview** — `PDFViewer` dynamically loaded with selected template and context data.
 
 ### Design Decisions
 
 | Decision | Rationale |
 |----------|-----------|
 | Templates as code (JSX), not database config | Git-versioned, full typographic control, no visual editor required |
+| Data from `context.record`, not a fetch | Widget already receives full record from the framework — no redundant API call |
+| `toDocumentData()` per widget, not a global mapper | Each module knows its own data shape; global mapper would become a god-object |
+| `PdfDocumentData` lives in `templates/sales-offer/types.ts` | Type is a contract between the widget mapper and the template, not a global concern |
+| `Record<string, unknown>` in route and drawer | Route and drawer are template-agnostic; type safety lives at the widget→template boundary |
+| Template registry in `config/registry.ts` | Configuration separated from logic; adding a template = one registry entry |
+| Fonts as base64 `*.generated.ts` per font | Works in both browser (no HTTP) and server (no filesystem path); tree-shakeable per font |
 | `renderToBuffer` on the server | Deterministic output, no dependency on client environment |
-| `PDFViewer` client-side with dynamic import | Only viable option in Next.js App Router — `ssr: false` is the standard pattern |
-| Data fetched via public `/api/quotes/:id` | Module stays independent — no direct imports from `@open-mercato/core` internals |
-| Files not stored in object storage | MVP — PDF returned directly as a stream; history stores only metadata |
-
-### Alternatives Considered
-
-| Alternative | Why Rejected |
-|-------------|-------------|
-| Database-driven templates (HTML/Handlebars) | Cannot handle complex PDF layouts; branding is hard to control |
-| Puppeteer / wkhtmltopdf | Much heavier dependencies, headless Chrome issues on servers |
-| Storing PDF files in object storage (S3) | Premature complexity for MVP; can be added in Phase 2 |
+| Files not stored in object storage | MVP — PDF returned directly as stream |
 
 ---
 
 ## User Stories / Use Cases
 
-- **A salesperson** wants to open a Quote and generate a PDF offer with one click, so they can send it to a client.
-- **A salesperson** wants to preview the PDF before generating it, so they can verify the data is correct.
-- **An admin** wants a list of all generated PDFs for auditing and re-downloading.
-- **A developer** wants to add a new PDF template by writing a React component, without modifying the core system.
+- **A salesperson** wants to open a Quote and generate a PDF offer with one click.
+- **An operations user** wants to generate a PDF from an Order, Invoice, or any other entity.
+- **A user** wants to preview the PDF before downloading to verify the data.
+- **A developer** wants to add a new PDF template by writing a React component and one registry entry — no other file changes required.
+- **A developer** wants to add PDF generation to any module by creating a widget folder with `toDocumentData()`, `types.ts`, and `templateIds` — fully independent of other widgets.
 
 ---
 
 ## Architecture
 
 ```
-sales/quotes/:id (detail view)
-  └── [Widget Injection: pdf-generators action button]
+<any module>/:id (detail view)
+  └── [Widget Injection: <module>_generate_pdf]
         ↓ click "Generate PDF"
-  PdfGeneratorDrawer (client component)
-    ├── GET /api/pdf-generators/templates  → list templates
-    ├── GET /api/quotes/:id                → Quote data (existing sales API)
-    ├── [PDFViewer — client-side live preview]
-    │     └── <SelectedTemplate data={documentData} />
-    └── POST /api/pdf-generators/generate
-          ├── renderToBuffer() → Buffer
-          ├── saves PdfGeneratedDocument (metadata)
-          └── returns PDF as application/pdf stream
+  <ModuleGeneratePdfWidget>
+    ├── context.record → toDocumentData() → data: Record<string, unknown>
+    └── PdfGeneratorDrawer(templateIds, data)
+          ├── Step 1: template selection (filtered by templateIds)
+          ├── Step 2: PdfPreview(templateId, data)
+          │     └── loadTemplate(templateId) → PDFViewer (client-side)
+          └── Step 3: DownloadButton
+                └── POST /api/pdf-generators/generate
+                      ├── loadTemplate(template_id)
+                      ├── renderToBuffer(<Template data={data} />)
+                      └── returns application/pdf stream
 ```
 
-### Commands & Events
+### Module Structure
 
-- **Command**: `pdf_generators.document.generate`
-- **Event**: `pdf_generators.document.generated`
-
-### Quote → PdfDocumentData Normalization
-
-The `/api/quotes/:id` response is normalized by `lib/mapQuoteToDocumentData.ts` into a standardized interface consumed by all templates:
-
-```ts
-interface PdfDocumentData {
-  document: {
-    number: string
-    date: string
-    validUntil?: string
-  }
-  client: {
-    name: string
-    email?: string
-    company?: string
-    address?: string
-  }
-  seller: {
-    name: string
-    company: string
-    email: string
-    phone?: string
-  }
-  lines: Array<{
-    title: string
-    description?: string
-    quantity: number
-    unitPrice: number
-    total: number
-    currency: string
-  }>
-  totals: {
-    subtotal: number
-    tax: number
-    total: number
-    currency: string
-  }
-  notes?: string
-}
+```
+src/modules/pdf_generators/
+├── config/
+│   └── registry.ts              # REGISTRY array — add templates here
+├── lib/
+│   ├── interfaces.ts            # TemplateMeta, TemplateRegistryEntry, PdfTemplateDefinition
+│   ├── types.ts                 # TemplateId (derived from REGISTRY)
+│   └── templates.ts             # getTemplateMetas(), loadTemplate()
+├── components/
+│   ├── PdfGeneratorDrawer.tsx   # Dialog: select → preview → download
+│   └── PdfPreview.tsx           # PDFViewer wrapper, loads template dynamically
+├── templates/
+│   ├── shared/
+│   │   └── fonts/
+│   │       ├── Inter-Regular.ttf
+│   │       ├── Inter-Regular.generated.ts   # base64 data URI (build-generated)
+│   │       └── ...
+│   └── sales-offer/
+│       ├── types.ts             # PdfDocumentData (template-specific contract)
+│       ├── theme.ts             # Font.register() + color tokens
+│       ├── index.tsx            # SalesOfferDocument component
+│       ├── CoverPage.tsx
+│       └── QuotePage.tsx
+├── widgets/
+│   ├── injection-table.ts       # spot → widget mapping
+│   └── injection/
+│       └── quote_generate_pdf/
+│           ├── widget.ts        # widget metadata
+│           ├── widget.client.tsx# QuoteGeneratePdfWidget
+│           ├── types.ts         # QuoteWidgetRecord, QuoteWidgetContext
+│           └── document-data.ts # toDocumentData(record) → Record<string, unknown>
+├── api/
+│   └── pdf-generators/
+│       └── generate/
+│           └── route.ts         # POST /api/pdf-generators/generate
+├── backend/
+│   └── pdf-generators/
+│       └── page.tsx             # /backend/pdf-generators
+└── acl.ts
 ```
 
 ---
 
-## Data Models
+## Data Contracts
 
-### PdfTemplate (code registry, not a database entity)
+### Template Registry Entry
 
 ```ts
-interface PdfTemplateDefinition {
-  id: string          // e.g. 'codee-offer'
-  label: string       // e.g. 'Codee Sales Offer'
+// config/registry.ts
+interface TemplateRegistryEntry {
+  id: string
+  label: string
   description: string
-  component: React.ComponentType<{ data: PdfDocumentData }>
+  load: () => Promise<React.ComponentType<{ data: Record<string, unknown> }>>
 }
 ```
 
-Registry declared in `src/modules/pdf_generators/lib/templates.ts`, exported as an array.
+Adding a new template = one object in `REGISTRY`. No other file needs to change.
 
-### PdfGeneratedDocument (entity, tenant-scoped)
+### Template-specific Data Shape
 
-| Column | Type | Notes |
-|--------|------|-------|
-| `id` | UUID PK | |
-| `organization_id` | string | FK, required on every query |
-| `tenant_id` | string | |
-| `quote_id` | string | FK to Quote (ID only, no ORM relation) |
-| `quote_number` | string | Snapshot of quote number at generation time |
-| `template_id` | string | Template ID from registry |
-| `template_label` | string | Snapshot of template label |
-| `generated_by` | string | User ID |
-| `generated_at` | timestamp | |
-| `created_at` | timestamp | |
-| `updated_at` | timestamp | |
+Each template defines its own `PdfDocumentData` in `templates/<name>/types.ts`. Example for `sales-offer`:
+
+```ts
+// templates/sales-offer/types.ts
+interface PdfDocumentData {
+  document: { number: string; date: string; validUntil?: string }
+  client: { name: string; email?: string; company?: string; address?: string }
+  seller: { name: string; company: string; email: string; phone?: string }
+  lines: Array<{ title: string; description?: string; quantity: number; unitPrice: number; total: number; currency: string }>
+  totals: { subtotal: number; tax: number; total: number; currency: string }
+  notes?: string
+}
+```
+
+### Widget Data Mapper
+
+```ts
+// widgets/injection/quote_generate_pdf/document-data.ts
+export function toDocumentData(record: QuoteWidgetRecord): Record<string, unknown>
+```
+
+Maps `context.record` from the injection framework to the template's expected shape. Lives next to the widget — not a global utility.
+
+### Widget Context Types
+
+```ts
+// widgets/injection/quote_generate_pdf/types.ts
+interface QuoteWidgetRecord { /* fields from context.record */ }
+interface QuoteWidgetContext {
+  kind: string
+  resourceId: string
+  resourceKind: string
+  record: QuoteWidgetRecord
+}
+```
 
 ---
 
 ## API Contracts
 
-### GET /api/pdf-generators/templates
-
-Returns the list of available templates (from code registry, not database).
-
-**Response:**
-```json
-{
-  "data": [
-    { "id": "codee-offer", "label": "Codee Sales Offer", "description": "..." }
-  ]
-}
-```
-
 ### POST /api/pdf-generators/generate
 
-Generates a PDF from Quote data and the selected template.
+Generates a PDF using the specified template and data.
 
 **Request:**
 ```json
 {
-  "quoteId": "uuid",
-  "templateId": "codee-offer"
+  "template_id": "sales-offer",
+  "data": { /* Record<string, unknown> — template-specific shape */ }
 }
 ```
 
 **Response:** `Content-Type: application/pdf` — binary PDF stream
 
 **Errors:**
-- `400` — missing `quoteId` or `templateId`
-- `403` — insufficient permissions for the Quote
-- `404` — Quote or template not found
+- `400` — missing or invalid `template_id` / `data`
+- `401` — unauthorized
 - `500` — render error
-
-### GET /api/pdf-generators/documents
-
-Paginated list of generated documents for the current tenant.
-
-**Query params:** `?quoteId=uuid` (optional filter)
-
-**Response:**
-```json
-{
-  "data": [
-    {
-      "id": "uuid",
-      "quoteId": "uuid",
-      "quoteNumber": "Q-2026/001",
-      "templateId": "codee-offer",
-      "templateLabel": "Codee Sales Offer",
-      "generatedBy": "uuid",
-      "generatedAt": "2026-05-06T12:00:00Z"
-    }
-  ],
-  "meta": { "total": 1, "page": 1, "pageSize": 50 }
-}
-```
 
 ---
 
@@ -243,199 +225,164 @@ Paginated list of generated documents for the current tenant.
 
 | Extension Point | Usage |
 |----------------|-------|
-| **Widget Injection** | Action button in Quote detail view (`quote-detail:actions`) |
-| **Backend Page** | `/backend/pdf-generators` — history and template overview |
-| **Custom Entity** | `PdfGeneratedDocument` — generation history |
-| **Events** | `pdf_generators.document.generated` |
+| **Widget Injection** | Any module's detail view — each widget registers its own injection spot in `injection-table.ts` |
+| **Backend Page** | `/backend/pdf-generators` — template overview |
 | **ACL Features** | `pdf_generators.view`, `pdf_generators.generate` |
+
+---
+
+## Fonts
+
+Fonts live in `templates/shared/fonts/`. Each `.ttf` file has a corresponding `*.generated.ts` file (excluded from git, generated by `build.mjs`) containing a base64 `data:font/truetype` URI.
+
+Templates import individual font files for tree-shaking:
+
+```ts
+import InterRegular from '../shared/fonts/Inter-Regular.generated'
+```
+
+`build.mjs` generates `*.generated.ts` files before esbuild compilation. No Next.js configuration required — `.ttf` files are never imported directly by the app.
 
 ---
 
 ## Internationalization (i18n)
 
-Keys in `src/modules/pdf_generators/i18n/`:
-- `pdf_generators.page.title` → `PDF Generators`
-- `pdf_generators.generate.button` → `Generate PDF`
-- `pdf_generators.template.select` → `Select template`
-- `pdf_generators.preview.title` → `Document preview`
-- `pdf_generators.history.title` → `Document history`
+| Key | Default |
+|-----|---------|
+| `pdf_generators.generate.button` | `Generuj PDF` |
+| `pdf_generators.template.select` | `Wybierz szablon` |
+| `pdf_generators.preview.title` | `Podgląd dokumentu` |
+| `pdf_generators.generate.generating` | `Generowanie...` |
 
 ---
 
 ## UI/UX
 
-### Widget in Quote detail view
+### Widget pattern (any module)
 
-A "Generate PDF" button in the Quote actions section. Opens a `Sheet` (drawer) with a 3-step wizard:
+A "Generate PDF" button injected into any detail view via `injection-table.ts`. Opens a fullscreen dialog:
 
-1. **Step 1 — Select template**: card list with template name and description.
-2. **Step 2 — Live preview**: `PDFViewer` renders the PDF with Quote data. "Generate & Download" button.
-3. **Step 3 — Confirmation**: spinner during generation → auto-download on completion.
+1. **Step 1 — Select template**: card list filtered by `templateIds` prop passed from the widget.
+2. **Step 2 — Preview + Download**: `PDFViewer` renders live with data from `context.record`. "Pobierz PDF" button triggers `POST /generate`.
 
 ### Page /backend/pdf-generators
 
-- History table: Quote Number, Template, Generated By, Date, "Regenerate" button.
-- No template configuration via UI (templates = code).
+Template overview — list of registered templates with labels and descriptions.
 
 ---
 
-## Configuration
+## Extending to Other Modules
 
-No required env vars. Optionally in the future:
-- `PDF_GENERATORS_MAX_PAGES` — page limit per document (abuse protection)
+To add PDF generation for a new module (e.g. Orders):
 
----
+1. Add template component in `templates/order-invoice/`
+2. Register in `config/registry.ts`
+3. Create `widgets/injection/order_generate_pdf/` with `types.ts`, `document-data.ts`, `widget.client.tsx`
+4. Add entry to `widgets/injection-table.ts`
 
-## Migration & Compatibility
-
-- New entity `PdfGeneratedDocument` — migration `CREATE TABLE pdf_generated_documents`.
-- No changes to existing modules (`sales`, `core`).
-- Widget injection uses the extension point `quote-detail:actions` — requires verification that this spot ID exists in the `sales` module.
-
----
-
-## Implementation Plan
-
-### Phase 1 — Module Foundation
-
-1. Add `@react-pdf/renderer` dependency to `package.json`.
-2. Define `PdfDocumentData` and `PdfTemplateDefinition` interfaces in `lib/types.ts`.
-3. Declare `PdfGeneratedDocument` entity in `data/entities.ts`.
-4. Generate and apply DB migration.
-5. Update `acl.ts` with features `pdf_generators.view` and `pdf_generators.generate`.
-6. Update `setup.ts` with `defaultRoleFeatures` (admin, superadmin).
-7. Create `events.ts` with event `pdf_generators.document.generated`.
-
-### Phase 2 — Templates & API
-
-1. Port JSX components from `/codee/offer` project into `src/modules/pdf_generators/templates/codee-offer/`.
-2. Adapt components to the `PdfDocumentData` interface.
-3. Register the template in `lib/templates.ts`.
-4. Write `lib/mapQuoteToDocumentData.ts` mapper.
-5. Implement `GET /api/pdf-generators/templates`.
-6. Implement `POST /api/pdf-generators/generate` (renderToBuffer + metadata save).
-7. Implement `GET /api/pdf-generators/documents`.
-
-### Phase 3 — UI
-
-1. `PdfPreview.tsx` component (dynamic import, `ssr: false`) wrapping `PDFViewer`.
-2. `PdfGeneratorDrawer.tsx` — 3-step wizard (select → preview → generate).
-3. Widget injection into Quote detail view (`widgets/injection/quote-generate-pdf.tsx`).
-4. Backend page `/backend/pdf-generators` — document history table.
-5. Verify `quote-detail:actions` spot ID exists in the `sales` module; if not — fallback to backend page entry point or propose adding the spot to core.
-
-### Phase 4 — Sandbox Smoke Test
-
-1. Add module to `apps/sandbox/src/modules.ts`.
-2. Run `yarn generate` + `yarn dev`.
-3. Test full flow: Quote detail → drawer → template select → preview → generate → history.
-4. Remove sandbox entry before opening PR.
-
-### File Manifest
-
-| File | Action | Purpose |
-|------|--------|---------|
-| `src/modules/pdf_generators/lib/types.ts` | Create | PdfDocumentData, PdfTemplateDefinition interfaces |
-| `src/modules/pdf_generators/lib/templates.ts` | Create | Template registry |
-| `src/modules/pdf_generators/lib/mapQuoteToDocumentData.ts` | Create | Quote API response → PdfDocumentData |
-| `src/modules/pdf_generators/data/entities.ts` | Create | PdfGeneratedDocument entity |
-| `src/modules/pdf_generators/data/validators.ts` | Create | Zod schemas for API inputs |
-| `src/modules/pdf_generators/data/migrations/` | Create | SQL migration |
-| `src/modules/pdf_generators/acl.ts` | Modify | Add view + generate features |
-| `src/modules/pdf_generators/setup.ts` | Modify | defaultRoleFeatures |
-| `src/modules/pdf_generators/events.ts` | Create | pdf_generators.document.generated event |
-| `src/modules/pdf_generators/templates/codee-offer/` | Create | Ported JSX template components |
-| `src/modules/pdf_generators/api/get/pdf-generators/templates.ts` | Create | GET templates |
-| `src/modules/pdf_generators/api/post/pdf-generators/generate.ts` | Create | POST generate |
-| `src/modules/pdf_generators/api/get/pdf-generators/documents.ts` | Create | GET history |
-| `src/modules/pdf_generators/widgets/PdfPreview.tsx` | Create | PDFViewer (ssr: false) |
-| `src/modules/pdf_generators/widgets/PdfGeneratorDrawer.tsx` | Create | 3-step wizard |
-| `src/modules/pdf_generators/widgets/injection/quote-generate-pdf.tsx` | Create | Quote action widget |
-| `src/modules/pdf_generators/widgets/injection-table.ts` | Create | Spot → widget mapping |
-| `src/modules/pdf_generators/backend/pdf-generators/page.tsx` | Modify | Document history page |
+No changes to existing code required.
 
 ---
 
 ## Risks & Impact Review
 
-### Data Integrity Failures
+### Data Integrity
 
-- **PDF generation vs metadata save**: `renderToBuffer` may succeed while the `PdfGeneratedDocument` insert fails. Mitigation: save metadata before returning the stream — if the insert fails, return 500 (no file sent).
-- **Deleted Quote**: a Quote may be deleted after the wizard opens. Mitigation: `POST /generate` verifies Quote existence before rendering; returns 404 with a clear message.
+- **Slow render**: `renderToBuffer` is synchronous and may be slow for large documents. Acceptable for MVP; Phase 2 can move to `@open-mercato/queue`.
+- **Missing line items**: `context.record` does not include line items (only `lineItemCount`). `toDocumentData()` returns empty `lines: []` until core exposes line items in the injection context.
 
-### Cascading Failures & Side Effects
+### Tenant & Data Isolation
 
-- **Sales API unavailability**: the mapper requires data from `/api/quotes/:id`. If the API is down, the wizard shows an error. No impact on other modules — the module emits no blocking events.
-- **Large documents (many line items)**: `renderToBuffer` may be slow. MVP has no timeout — an async queue or page limit can be added in Phase 2.
+- No database entities — no tenant isolation risk in this phase.
+- Templates are code-defined — no cross-tenant data leakage.
 
-### Tenant & Data Isolation Risks
+### Font Loading
 
-- `PdfGeneratedDocument` has `organization_id` — all queries are filtered by it. Residual risk: low.
-- Templates are per-code (not per-tenant) — no cross-tenant data leakage risk.
+- `*.generated.ts` files are gitignored and must be regenerated after `build.mjs`. Dev mode requires either running the build or having the files pre-generated. Mitigation: `build.mjs` always regenerates them before esbuild.
 
-### Migration & Deployment Risks
+### Operational
 
-- New table `pdf_generated_documents` — additive migration, no risk to existing data.
-- `@react-pdf/renderer` adds ~500 KB to the bundle. Dynamic import with `ssr: false` minimizes SSR impact.
-
-### Operational Risks
-
-- PDF generation is synchronous on the server and may block a worker under heavy load. Acceptable for MVP; Phase 2 can move this to a queue (`@open-mercato/queue`).
-
-#### Risk: Spot ID `quote-detail:actions` does not exist
-
-- **Scenario**: Widget injection requires a defined spot ID in the `sales` module. If the spot does not exist, the widget will not appear in the UI.
-- **Severity**: High
-- **Affected area**: Entire entry flow into the PDF wizard
-- **Mitigation**: Verify in Phase 3 Step 5. Fallback: entry point via backend page instead of widget injection.
-- **Residual risk**: Adding a spot to `packages/core` is out of community module scope. In that case, the entry point is the backend page.
+- `@react-pdf/renderer` adds ~500 KB to the server bundle. Dynamic import of template components (`loadTemplate`) limits client-side impact.
 
 ---
 
-## Final Compliance Report — 2026-05-06
+## Implementation Plan
 
-### AGENTS.md Files Reviewed
-- `AGENTS.md` (root)
-- `packages/core/AGENTS.md`
-- `packages/ui/AGENTS.md`
-- `packages/shared/AGENTS.md`
+### Phase 1 — Foundation ✅
+
+1. Package scaffold (`package.json`, `build.mjs`, `tsconfig.json`)
+2. `acl.ts` with `pdf_generators.view`, `pdf_generators.generate`
+3. `setup.ts` with `defaultRoleFeatures`
+4. Module `index.ts`
+
+### Phase 2 — Templates & Registry ✅
+
+1. `config/registry.ts` — REGISTRY array
+2. `lib/interfaces.ts`, `lib/types.ts`, `lib/templates.ts`
+3. `templates/shared/fonts/` + font build pipeline in `build.mjs`
+4. `templates/sales-offer/` — `types.ts`, `theme.ts`, `CoverPage.tsx`, `QuotePage.tsx`, `index.tsx`
+
+### Phase 3 — API ✅
+
+1. `POST /api/pdf-generators/generate` — accepts `{ template_id, data }`, `renderToBuffer`, returns PDF stream
+
+### Phase 4 — UI Components ✅
+
+1. `components/PdfPreview.tsx` — `PDFViewer` wrapper with dynamic `loadTemplate`
+2. `components/PdfGeneratorDrawer.tsx` — fullscreen dialog, select → preview → download
+3. `widgets/injection/quote_generate_pdf/` — first reference widget: `types.ts`, `document-data.ts`, `widget.client.tsx`, `widget.ts`
+4. `widgets/injection-table.ts` — injection spot mapping (one entry per supported module view)
+
+### Phase 5 — History & Backend Page (Planned)
+
+1. `PdfGeneratedDocument` entity — `id`, `organization_id`, `tenant_id`, `resource_kind`, `resource_id`, `resource_label`, `template_id`, `template_label`, `generated_by`, `generated_at`
+2. DB migration
+3. Save metadata in `POST /generate` after successful render (resource kind + ID passed alongside `template_id` and `data`)
+4. `GET /api/pdf-generators/documents` — paginated history, filterable by `resource_kind` and `resource_id`
+5. Backend page — history table: Resource, Template, Generated By, Date
+
+### Phase 6 — External Storage (Planned)
+
+1. After successful render, upload the PDF buffer to a configured external storage provider (e.g. S3, GCS, or any compatible object store)
+2. Store the resulting public/signed URL in `PdfGeneratedDocument.storage_url`
+3. `GET /api/pdf-generators/documents/:id/url` — return a fresh signed URL (re-signed if expired)
+4. Download button in the widget uses the stored URL when available, falls back to on-demand render otherwise
+
+### Phase 7 — Email & Sharing (Planned)
+
+1. Send PDF directly to a recipient email from the widget — attach generated PDF or include storage URL
+2. Shareable link — time-limited public URL for previewing a document without login
+3. Bulk generation — generate PDFs for multiple records in a single action via queue worker
+
+### Phase 8 — Advanced Templates (Planned)
+
+1. Template versioning — record which template version was used at generation time; archived versions remain renderable
+2. Draft watermark — render a "DRAFT" overlay when the source resource is not in a final status
+3. Auto-generation trigger — emit `pdf_generators.document.generated` event on resource status change (e.g. quote accepted)
+
+---
+
+---
+
+## Final Compliance Report — 2026-05-07
 
 ### Compliance Matrix
 
-| Rule Source | Rule | Status | Notes |
-|-------------|------|--------|-------|
-| root AGENTS.md | No direct ORM relationships between modules | Compliant | `quote_id` as string FK only |
-| root AGENTS.md | Filter by organization_id | Compliant | All queries scoped |
-| root AGENTS.md | Validate inputs with zod | Compliant | Validators in `data/validators.ts` |
-| root AGENTS.md | API routes MUST export openApi | Compliant | Planned for all 3 routes |
-| root AGENTS.md | Module code in `packages/<name>/` | Compliant | `packages/pdf-generators/` |
-| root AGENTS.md | `defaultRoleFeatures` in setup.ts | Compliant | admin + superadmin |
-| root AGENTS.md | Never hardcode user-facing strings | Compliant | All strings via `useT()` |
-| packages/ui/AGENTS.md | dynamic import with ssr:false for client-only libs | Compliant | PDFViewer wrapped in dynamic import |
-| root AGENTS.md | No code directly in apps/mercato/src/ | Compliant | Code lives in packages/ |
+| Rule | Status | Notes |
+|------|--------|-------|
+| No direct ORM relationships between modules | ✅ | No DB entities yet; FK IDs planned |
+| Filter by organization_id | ✅ | Planned for Phase 5 entity |
+| Validate inputs with Zod | ✅ | generate route validates template_id + data presence |
+| API routes export openApi | ✅ | generate route exports openApi |
+| Module code in `packages/<name>/` | ✅ | `packages/pdf-generators/` |
+| defaultRoleFeatures in setup.ts | ✅ | |
+| Never hardcode user-facing strings | ✅ | All via useT() |
+| No direct imports from other module internals | ✅ | Data via context.record only |
 
-### Internal Consistency Check
+### Non-Compliant / Pending
 
-| Check | Status | Notes |
-|-------|--------|-------|
-| Data models match API contracts | Pass | PdfGeneratedDocument matches GET /documents response |
-| API contracts match UI/UX section | Pass | Drawer calls POST /generate and GET /templates |
-| Risks cover all write operations | Pass | POST /generate covered |
-| Commands defined for all mutations | Pass | `pdf_generators.document.generate` |
-| Spot ID exists in `sales` module | Needs verification | To be confirmed in Phase 3 |
-
-### Non-Compliant Items
-
-No blockers. One item requires verification:
-- **Spot ID `quote-detail:actions`**: must be confirmed in the `sales` module. If absent — fallback to backend page entry point without widget injection.
+- **Line items missing from context.record**: `toDocumentData()` returns `lines: []` until core exposes line items in the injection context. Not a blocker — PDF renders correctly with empty lines section.
 
 ### Verdict
 
-**Fully compliant** — ready for implementation pending spot ID verification in Phase 3.
-
----
-
-## Changelog
-
-### 2026-05-06
-- Initial specification
+**Compliant for Phases 1–4.** Phase 5 requires DB entity + migration review before implementation.
