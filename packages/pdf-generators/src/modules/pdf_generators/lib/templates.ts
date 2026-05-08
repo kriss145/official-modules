@@ -6,12 +6,12 @@ export type { TemplateMeta, PdfTemplateDefinition }
 export type { TemplateId } from './types'
 
 export function getTemplateMetas(): TemplateMeta[] {
-  return getAllTemplates().map(({ id, label, description }) => ({ id, label, description }))
+  return getAllTemplates().map(({ id, label, description, category, tags, moduleId }) => ({ id, label, description, category, tags, moduleId }))
 }
 
 export async function loadTemplate(id: string): Promise<PdfTemplateDefinition> {
   const entry = getAllTemplates().find((t) => t.id === id)
   if (!entry) throw new Error(`Unknown template: ${id}`)
   const component = await entry.load()
-  return { id: entry.id, label: entry.label, description: entry.description, component }
+  return { id: entry.id, label: entry.label, description: entry.description, category: entry.category, tags: entry.tags, moduleId: entry.moduleId, component }
 }

@@ -3,8 +3,8 @@ import { NextResponse } from 'next/server'
 import { getInternalTemplates, getExternalTemplates } from '../../../lib/template-registry'
 import type { TemplateMeta } from '../../../lib/interfaces'
 
-function toMeta({ id, label, description }: TemplateMeta): TemplateMeta {
-  return { id, label, description }
+function toMeta({ id, label, description, category, tags, moduleId }: TemplateMeta): TemplateMeta {
+  return { id, label, description, category, tags, moduleId }
 }
 
 export const metadata = {

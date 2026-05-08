@@ -2,8 +2,10 @@
 
 import type { InjectionWidgetComponentProps } from '@open-mercato/shared/modules/widgets/injection'
 import { TemplatesList } from '../../../components/TemplatesList'
-import type { QuoteWidgetContext } from '../../../data/quote-detail'
-import { toDocumentData } from '../../../data/quote-detail'
+import type { QuoteWidgetContext } from '../../../data/quote-detail/types'
+
+// Side effect: registers internal templates in the client-side globalThis registry
+import '../../../config/registry'
 
 export default function QuotePdfTabWidget({ context }: InjectionWidgetComponentProps) {
   const ctx = context as QuoteWidgetContext
@@ -14,8 +16,8 @@ export default function QuotePdfTabWidget({ context }: InjectionWidgetComponentP
   return (
     <div className="border rounded-lg p-4">
       <TemplatesList
-        data={toDocumentData(record)}
-        templateIds={['sales-offer', 'example-invoice']}
+        record={record}
+        filter={{ category: 'quote', moduleId: 'quotes' }}
       />
     </div>
   )

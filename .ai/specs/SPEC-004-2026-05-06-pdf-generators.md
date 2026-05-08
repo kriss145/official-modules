@@ -25,7 +25,7 @@
 
 The `pdf_generators` module extends OpenMercato with the ability to generate professional, branded PDF documents from any entity in the system. A "Generate PDF" button can be injected into any detail view — it opens a dialog: template selection → live preview → download.
 
-Templates are defined as React components (JSX) inside the package. Each template defines its own data shape (`PdfDocumentData` in `types.ts`). Available templates are served via `GET /api/pdf-generators/templates` which reads two globalThis-backed registries: **internal** (registered at module init from `config/registry.ts`) and **external** (registered at bootstrap by code-generated `pdf-generators.generated.ts`). Each widget filters templates by `templateIds` prop.
+Templates are defined as React components (JSX) inside the package. Each template defines its own data shape (`PdfDocumentData` in `types.ts`). Available templates are served via `GET /api/pdf-generators/templates` which reads two globalThis-backed registries: **internal** (registered at module init from `config/registry.ts`) and **external** (registered at bootstrap by code-generated `pdf-generators.generated.ts`). Each widget filters templates by a `TemplateFilter` (`category`, `tags`, `moduleId`) — not by explicit ID list.
 
 Data flows from the widget's `context.record` through a `toDocumentData()` function located in `data/<context-name>/document-data.ts` — not inside the widget folder. The mapper lives in a dedicated `data/` folder and is imported by the widget.
 
@@ -67,6 +67,8 @@ An external community module (`packages/pdf-generators/`) extending OpenMercato 
 | globalThis-based dual registry (internal + external) | Decoupled: internal templates ship with the module; external templates are injected at bootstrap from generated code |
 | `GET /api/pdf-generators/templates` endpoint | Client needs the list at runtime to filter and display available templates without bundling the registry |
 | `generators.ts` plugin for code-gen | External modules declare templates in `pdf-generators.ts`; `mercato generate registry` produces the bootstrap glue |
+| `moduleId` = target module, not source package | A template declares which module's data it consumes (`'quotes'`, `'orders'`) — not which package ships it. Widgets filter by `moduleId` to get only templates compatible with their data shape. |
+| `fromRecord` in registry entry, not in widget | Each template knows how to map its target module's record — the widget is decoupled from data shape concerns. Adding a new template for `quotes` requires zero changes to the widget. |
 | Tab widget (`quote_pdf_tab`) not action button | PDF is a contextual view of the record, not a one-shot action |
 | Preview via iframe + blob URL, not PDFViewer | Server renders the PDF once (`renderToBuffer`), iframe displays the result — no client-side re-render on every change |
 | Fonts as base64 `*.generated.ts` per font | Works on the server (no filesystem path issues); tree-shakeable per font |
@@ -92,10 +94,11 @@ An external community module (`packages/pdf-generators/`) extending OpenMercato 
   └── [Widget Injection: <module>_pdf_tab]
         ↓ tab renders
   <ModulePdfTabWidget>
-    ├── context.record → toDocumentData() → data: Record<string, unknown>
-    └── TemplatesList(templateIds, data)
-          ├── GET /api/pdf-generators/templates → TemplateMeta[] (filtered by templateIds)
+    ├── import config/registry (side effect — populates client-side globalThis registry)
+    └── TemplatesList(record, filter)
+          ├── GET /api/pdf-generators/templates → TemplateMeta[] (filtered by TemplateFilter)
           ├── TemplatesListView → TemplateListItem (click to select)
+          │     └── on select: getAllTemplates().find(id) → entry.fromRecord(record) → data
           └── PreviewPanel(template, data)
                 ├── POST /api/pdf-generators/generate → blob
                 │     ├── loadTemplate(template_id) from registry
@@ -138,9 +141,8 @@ src/modules/pdf_generators/
 │       └── QuotePage.tsx
 ├── data/
 │   └── quote-detail/
-│       ├── index.ts             # re-exports document-data + types
-│       ├── types.ts             # QuoteWidgetRecord, QuoteWidgetContext
-│       └── document-data.ts    # toDocumentData(record) → Record<string, unknown>
+│       ├── index.ts             # re-exports types
+│       └── types.ts             # QuoteWidgetRecord, QuoteWidgetContext (used by registry + widget)
 ├── widgets/
 │   ├── injection-table.ts       # spot → widget mapping
 │   └── injection/
@@ -181,11 +183,24 @@ getAllTemplates(): TemplateRegistryEntry[]
 
 ```ts
 // lib/interfaces.ts
-interface TemplateRegistryEntry {
+interface TemplateMeta {
   id: string
   label: string
   description: string
+  category: string      // e.g. 'quote', 'order', 'invoice'
+  tags: string[]        // e.g. ['offer', 'sales', 'b2b']
+  moduleId: string      // target module whose data this template consumes — e.g. 'quotes', 'orders'
+}
+
+interface TemplateRegistryEntry extends TemplateMeta {
+  fromRecord: (record: unknown) => Record<string, unknown>  // maps raw context.record to template data shape
   load: () => Promise<React.ComponentType<{ data: Record<string, unknown> }>>
+}
+
+interface TemplateFilter {
+  category?: string
+  tags?: string[]       // OR logic — matches if template has ANY of the given tags
+  moduleId?: string
 }
 ```
 
@@ -207,14 +222,24 @@ interface PdfDocumentData {
 }
 ```
 
-### Widget Data Mapper
+### Template Data Mapper
+
+Each template declares its own `fromRecord` in the registry entry — it knows how to map `context.record` of its target module to its own internal data shape:
 
 ```ts
-// data/quote-detail/document-data.ts
-export function toDocumentData(record: QuoteWidgetRecord): Record<string, unknown>
+// config/registry.ts (example)
+{
+  id: 'sales-offer',
+  moduleId: 'quotes',
+  fromRecord: (record: unknown) => {
+    const r = record as QuoteWidgetRecord
+    return { document: { number: r.quoteNumber, ... }, client: { ... }, ... }
+  },
+  load: () => import('./templates/sales-offer'),
+}
 ```
 
-Maps `context.record` from the injection framework to the template's expected shape. Lives in `data/<context-name>/` — not inside the widget folder, making it reusable.
+`fromRecord` is called client-side when the user selects a template — before calling `POST /generate`. The widget only passes `record` to `TemplatesList`; it does not perform any mapping itself.
 
 ### Widget Context Types
 
@@ -312,7 +337,7 @@ import InterRegular from '../shared/fonts/Inter-Regular.generated'
 
 A **PDF tab** injected into any detail view via `injection-table.ts`. The tab renders `TemplatesList`:
 
-1. **Template list** — card grid fetched from `GET /api/pdf-generators/templates`, filtered by `templateIds` prop.
+1. **Template list** — card grid fetched from `GET /api/pdf-generators/templates`, filtered by `TemplateFilter` (`category`, `tags`, `moduleId`) passed as `filter` prop.
 2. **Preview dialog** (`PreviewPanel`) — on card click: calls `POST /api/pdf-generators/generate`, displays the result in an `<iframe>` via blob URL. "Pobierz PDF" button triggers `downloadBlob()`.
 
 ### Page /backend/pdf-generators
@@ -391,14 +416,14 @@ No changes to existing code required.
 
 ### Phase 4 — UI Components ✅
 
-1. `components/TemplatesList.tsx` — fetches templates via `GET /api/pdf-generators/templates`, filters by `templateIds`, renders card list
+1. `components/TemplatesList.tsx` — fetches templates via `GET /api/pdf-generators/templates`, applies `TemplateFilter` client-side, renders card list
 2. `components/TemplatesListView.tsx`, `TemplatesListLoader.tsx`, `TemplateListItem.tsx` — list sub-components
 3. `components/PreviewPanel.tsx` — fullscreen dialog: fetches blob from `POST /generate`, shows `Preview` (iframe) + download button
 4. `components/Preview.tsx` — iframe rendering a blob URL
 5. `components/Loader.tsx` — spinner
 6. `utils/downloadBlob.ts` — triggers browser file download
-7. `data/quote-detail/` — `types.ts`, `document-data.ts`, `index.ts` (data mapper for quote context)
-8. `widgets/injection/quote_pdf_tab/` — first reference widget: `widget.ts`, `widget.client.tsx`
+7. `data/quote-detail/` — `types.ts`, `index.ts` (record type for quote context; mapper lives in registry entry)
+8. `widgets/injection/quote_pdf_tab/` — first reference widget: `widget.ts`, `widget.client.tsx` (imports registry as side effect, passes `record` to `TemplatesList`)
 9. `widgets/injection-table.ts` — injection spot mapping
 
 ### Phase 4.5 — External Template Code-Gen ✅
@@ -470,3 +495,5 @@ No changes to existing code required.
 | 2026-05-06 | Krzysztof Polak | Spec created — Phases 1–4 designed |
 | 2026-05-07 | Krzysztof Polak | Initial compliance report added |
 | 2026-05-08 | Krzysztof Polak | Spec updated to match implementation: widget renamed to `quote_pdf_tab` (tab, not action); `PdfGeneratorDrawer` replaced by `TemplatesList` + `PreviewPanel` + `Preview` + `Loader` + `downloadBlob`; data mapper moved to `data/quote-detail/`; `GET /api/pdf-generators/templates` endpoint added; globalThis-based dual registry (`template-registry.ts`) documented; `generators.ts` plugin (Phase 4.5) added |
+| 2026-05-08 | Krzysztof Polak | `templateIds` filtering replaced by `TemplateFilter { category, tags, moduleId }` — templates declare `category`, `tags[]`, `moduleId` at registration; `TemplatesList` accepts `filter` prop instead of `templateIds`; OR logic for tags |
+| 2026-05-08 | Krzysztof Polak | `fromRecord` mapper moved from `data/quote-detail/document-data.ts` into each `TemplateRegistryEntry` — template owns its own data mapping; widget passes raw `record` to `TemplatesList`; `document-data.ts` removed; `TemplatesList` resolves mapper from globalThis registry on template selection |
