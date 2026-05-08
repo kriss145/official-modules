@@ -2,12 +2,12 @@
 
 import React from 'react'
 
-interface PdfPreviewProps {
+interface PreviewProps {
   templateId: string
   data: Record<string, unknown>
 }
 
-export function PdfPreview({ templateId, data }: PdfPreviewProps) {
+export function Preview({ templateId, data }: PreviewProps) {
   const [url, setUrl] = React.useState<string | null>(null)
 
   React.useEffect(() => {

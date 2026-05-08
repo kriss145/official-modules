@@ -6,5 +6,7 @@
   "pdf_generators.preview.title": "Document preview",
   "pdf_generators.generate.button": "Download PDF",
   "pdf_generators.generate.generating": "Generating...",
-  "pdf_generators.generate.open": "Generate PDF"
+  "pdf_generators.generate.open": "Generate PDF",
+  "pdf_generators.templates.loading": "Loading data...",
+  "pdf_generators.templates.title": "Available PDF templates"
 }

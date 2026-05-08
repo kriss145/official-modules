@@ -1,7 +1,7 @@
 'use client'
 
 import type { InjectionWidgetComponentProps } from '@open-mercato/shared/modules/widgets/injection'
-import { QuotePdfGeneratorButton } from '../../../components/QuotePdfGeneratorButton'
+import { TemplatesList } from '../../../components/TemplatesList'
 import type { QuoteWidgetContext } from '../../../data/quote-detail'
 import { toDocumentData } from '../../../data/quote-detail'
 
@@ -12,8 +12,8 @@ export default function QuotePdfTabWidget({ context }: InjectionWidgetComponentP
   if (!record) return null
 
   return (
-    <div className="p-0">
-      <QuotePdfGeneratorButton
+    <div className="border rounded-lg p-4">
+      <TemplatesList
         data={toDocumentData(record)}
         templateIds={['sales-offer', 'example-invoice']}
       />
