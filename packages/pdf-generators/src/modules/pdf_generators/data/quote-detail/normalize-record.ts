@@ -1,7 +1,7 @@
 import type { QuoteWidgetRecord } from './types'
 import { formatDate } from '../../utils/formatDate'
 
-export function fromRecord(record: unknown): Record<string, unknown> {
+export function normalizeRecord(record: unknown): Record<string, unknown> {
   const r = record as QuoteWidgetRecord
   const customer = r.customerSnapshot?.customer
   const contact = r.customerSnapshot?.contact
