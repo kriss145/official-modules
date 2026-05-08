@@ -3,8 +3,8 @@ import QuoteGeneratePdfWidget from './widget.client'
 
 const widget: InjectionWidgetModule = {
   metadata: {
-    id: 'pdf_generators.injection.quote_generate_pdf',
-    title: 'Generate PDF',
+    id: 'pdf_generators.injection.quote_pdf_tab',
+    title: 'PDF',
     features: ['pdf_generators.view'],
     priority: 10,
   },

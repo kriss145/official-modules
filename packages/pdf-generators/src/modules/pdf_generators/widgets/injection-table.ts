@@ -1,10 +1,11 @@
 import type { ModuleInjectionTable } from '@open-mercato/shared/modules/widgets/injection'
 
 export const injectionTable: ModuleInjectionTable = {
-  'sales.document.detail.quote:details': [
+  'sales.document.detail.quote:tabs': [
     {
-      widgetId: 'pdf_generators.injection.quote_generate_pdf',
+      widgetId: 'pdf_generators.injection.quote_pdf_tab',
       priority: 10,
+      kind: 'tab',
     },
   ],
 }

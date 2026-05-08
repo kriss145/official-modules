@@ -30,7 +30,13 @@ export function PdfGeneratorDrawer({ open, onClose, data, templateIds }: PdfGene
   React.useEffect(() => {
     fetch('/api/pdf-generators/templates')
       .then((r) => r.json())
-      .then((data) => setAllTemplates(Array.isArray(data) ? data : []))
+      .then((data) => {
+        const all = [
+          ...(Array.isArray(data?.internal) ? data.internal : []),
+          ...(Array.isArray(data?.external) ? data.external : []),
+        ]
+        setAllTemplates(all)
+      })
       .catch(() => {})
   }, [])
 
