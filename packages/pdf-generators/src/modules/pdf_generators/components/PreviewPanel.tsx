@@ -10,9 +10,12 @@ import {
   DialogTitle,
   DialogDescription,
 } from '@open-mercato/ui/primitives/dialog'
+import { apiCall } from '@open-mercato/ui/backend/utils/apiCall'
 import { useT } from '@open-mercato/shared/lib/i18n/context'
 import type { TemplateMeta } from '../lib/interfaces'
 import { Preview } from './Preview'
+import { Loader } from './Loader'
+import { downloadBlob } from '../utils/downloadBlob'
 
 interface PreviewPanelProps {
   open: boolean
@@ -23,6 +26,36 @@ interface PreviewPanelProps {
 
 export function PreviewPanel({ open, onClose, data, template }: PreviewPanelProps) {
   const t = useT()
+  const [blobUrl, setBlobUrl] = React.useState<string | null>(null)
+  const [loading, setLoading] = React.useState(true)
+
+  React.useEffect(() => {
+    if (!open) return
+
+    setLoading(true)
+    setBlobUrl(null)
+
+    let objectUrl: string
+
+    apiCall('/api/pdf-generators/generate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ template_id: template.id, data }),
+    }, {
+      parse: (res) => res.blob(),
+    })
+      .then(({ result }) => {
+        if (!result) return
+        objectUrl = URL.createObjectURL(result)
+        setBlobUrl(objectUrl)
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false))
+
+    return () => {
+      if (objectUrl) URL.revokeObjectURL(objectUrl)
+    }
+  }, [open, template.id])
 
   return (
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
@@ -34,48 +67,21 @@ export function PreviewPanel({ open, onClose, data, template }: PreviewPanelProp
 
         <div className="flex flex-1 flex-col overflow-hidden">
           <div className="flex-1 overflow-hidden bg-muted/30">
-            <Preview templateId={template.id} data={data} />
+            {loading && (
+              <div className="flex h-full items-center justify-center">
+                <Loader />
+              </div>
+            )}
+            {blobUrl && <Preview url={blobUrl} />}
           </div>
           <div className="border-t bg-background px-6 py-4">
-            <DownloadButton templateId={template.id} data={data} />
+            <Button onClick={() => blobUrl && downloadBlob(blobUrl, template.id)} disabled={!blobUrl} className="w-full">
+              <Download className="mr-2 h-4 w-4" />
+              {t('pdf_generators.generate.button', 'Pobierz PDF')}
+            </Button>
           </div>
         </div>
       </DialogContent>
     </Dialog>
-  )
-}
-
-function DownloadButton({ templateId, data }: { templateId: string; data: Record<string, unknown> }) {
-  const t = useT()
-  const [loading, setLoading] = React.useState(false)
-
-  async function handleDownload() {
-    setLoading(true)
-    try {
-      const res = await fetch('/api/pdf-generators/generate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ template_id: templateId, data }),
-      })
-      if (!res.ok) throw new Error('Generation failed')
-      const blob = await res.blob()
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = `${templateId}.pdf`
-      a.click()
-      URL.revokeObjectURL(url)
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  return (
-    <Button onClick={handleDownload} disabled={loading} className="w-full">
-      <Download className="mr-2 h-4 w-4" />
-      {loading
-        ? t('pdf_generators.generate.generating', 'Generowanie...')
-        : t('pdf_generators.generate.button', 'Pobierz PDF')}
-    </Button>
   )
 }
