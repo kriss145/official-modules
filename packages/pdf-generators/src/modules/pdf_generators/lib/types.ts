@@ -1,3 +1,3 @@
 import { REGISTRY } from '../config/registry'
 
-export type TemplateId = (typeof REGISTRY)[number]['id']
+export type TemplateId = (typeof REGISTRY)[number]
