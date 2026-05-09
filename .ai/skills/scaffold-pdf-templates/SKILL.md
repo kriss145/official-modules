@@ -3,9 +3,11 @@ name: scaffold-pdf-templates
 description: Scaffold the files needed to add custom PDF templates to an @open-mercato module using the pdf-generators package. Creates a DocumentService, a template component, a types file, the pdf-generators.ts convention file, and an injection widget that renders the TemplatesList. Triggers on "scaffold pdf templates", "add pdf template", "create pdf template", "add invoice template", "add quote template", "pdf widget", "generate pdf".
 ---
 
-# use-pdf-generators
+# scaffold-pdf-templates
 
 Scaffolds everything needed for a community module (or sandbox module) to register and render its own PDF templates via `@open-mercato/pdf-generators`.
+
+> **Reference implementation**: `packages/pdf-generators/examples/` — a fully working invoice example. Read it before generating files to verify current API shape.
 
 ---
 
