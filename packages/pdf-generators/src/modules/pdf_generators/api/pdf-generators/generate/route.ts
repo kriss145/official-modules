@@ -11,6 +11,12 @@ export const metadata = {
   POST: { requireAuth: true, requireFeatures: ['pdf_generators.view'] },
 }
 
+/**
+ * Generates a PDF document for the given template and record.
+ *
+ * @param request - Request body: `{ template_id: TemplateId, record: unknown }`
+ * @returns PDF binary stream or JSON error response
+ */
 export async function POST(request: Request) {
   let body: { template_id: TemplateId; record: unknown }
 

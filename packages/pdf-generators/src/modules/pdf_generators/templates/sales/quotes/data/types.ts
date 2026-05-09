@@ -1,3 +1,6 @@
+/**
+ * Raw quote record passed from the widget context — shape mirrors the API response snapshot fields.
+ */
 export interface QuoteWidgetRecord {
   id: string
   quoteNumber: string
@@ -43,11 +46,14 @@ export interface QuoteWidgetRecord {
     addressLine2: string | null
     city: string | null
     region: string | null
-    postalCode: string | number | null
+    postalCode: string | number | null // API returns string or number depending on country
     country: string | null
   } | null
 }
 
+/**
+ * Full widget context passed to the quote PDF widget — wraps the record with routing metadata.
+ */
 export interface QuoteWidgetContext {
   kind: string
   resourceId: string

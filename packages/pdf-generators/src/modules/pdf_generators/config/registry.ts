@@ -17,5 +17,5 @@ const BUILT_IN_TEMPLATES: TemplateRegistryEntry[] = [
 
 templateRegistry.registerInternal(BUILT_IN_TEMPLATES)
 
-// Keep REGISTRY export for TemplateId type derivation
+/** Exported for TemplateId type derivation — not intended for runtime use. */
 export const REGISTRY = BUILT_IN_TEMPLATES

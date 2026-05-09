@@ -8,6 +8,11 @@ export const metadata = {
   GET: { requireAuth: true, requireFeatures: ['pdf_generators.view'] },
 }
 
+/**
+ * Returns all available PDF templates grouped by source (internal and external).
+ *
+ * @returns JSON with `{ internal: TemplateMeta[], external: TemplateMeta[] }`
+ */
 export async function GET() {
   return NextResponse.json(templateRegistry.getMetas())
 }

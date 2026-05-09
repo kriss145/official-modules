@@ -1,3 +1,6 @@
+/**
+ * Minimal metadata for a PDF template — used in listings and filtering.
+ */
 export interface TemplateMeta {
   id: string
   label: string
@@ -7,15 +10,24 @@ export interface TemplateMeta {
   moduleId: string
 }
 
+/**
+ * Full registry entry — extends metadata with runtime loading and data normalization.
+ */
 export interface TemplateRegistryEntry extends TemplateMeta {
-  fromRecord: (record: unknown) => Record<string, unknown>
-  load: () => Promise<React.ComponentType<{ data: Record<string, unknown> }>>
+  fromRecord: (record: unknown) => Record<string, unknown> // maps raw server record to the template data shape
+  load: () => Promise<React.ComponentType<{ data: Record<string, unknown> }>> // lazy-loaded React-PDF component
 }
 
+/**
+ * Resolved template ready for rendering — component is already loaded.
+ */
 export interface PdfTemplateDefinition extends TemplateMeta {
   component: React.ComponentType<{ data: Record<string, unknown> }>
 }
 
+/**
+ * Optional filter criteria for querying templates from the registry.
+ */
 export interface TemplateFilter {
   category?: string
   tags?: string[]

@@ -52,6 +52,30 @@ async load(id: string, record: unknown): Promise<LoadedTemplate>
 export const templateRegistry = new TemplateRegistry()
 ```
 
+**Exported interfaces** — JSDoc on the interface itself; inline comment on fields whose purpose is not obvious from the name or type:
+
+```ts
+/**
+ * Entry in the template registry — defines how a template is loaded and how raw data is normalized.
+ */
+export interface TemplateRegistryEntry extends TemplateMeta {
+  fromRecord: (record: unknown) => Record<string, unknown> // maps raw server record to template data shape
+  load: () => Promise<React.ComponentType<{ data: Record<string, unknown> }>> // lazy-loaded React component
+}
+```
+
+**API route handlers** (`GET`, `POST`, etc.) — multi-line JSDoc with `@param` for the request body shape and `@returns` for the response:
+
+```ts
+/**
+ * Generates a PDF document for the given template and record.
+ *
+ * @param request - Request body: `{ template_id: TemplateId, record: unknown }`
+ * @returns PDF binary stream or JSON error response
+ */
+export async function POST(request: Request) { ... }
+```
+
 **Internal classes** (not exported from `src/index.ts`) — no JSDoc needed.  
 **File-level comments** — never.
 
