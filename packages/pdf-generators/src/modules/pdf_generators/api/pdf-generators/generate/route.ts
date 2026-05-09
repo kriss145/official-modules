@@ -2,7 +2,9 @@ import React from 'react'
 import { renderToBuffer, type DocumentProps } from '@react-pdf/renderer'
 import type { OpenApiRouteDoc } from '@open-mercato/shared/lib/openapi'
 import { NextResponse } from 'next/server'
-import { loadTemplate, type TemplateId } from '../../../lib/templates'
+import '../../../config/registry' // registers built-in templates as side effect
+import { templateRegistry } from '../../../lib/template-registry'
+import type { TemplateId } from '../../../lib/template-registry'
 
 export const metadata = {
   path: '/pdf-generators/generate',
@@ -26,7 +28,7 @@ export async function POST(request: Request) {
 
   let template
   try {
-    template = await loadTemplate(template_id, record)
+    template = await templateRegistry.load(template_id, record)
   } catch {
     return NextResponse.json({ error: `Unknown template: ${template_id}` }, { status: 400 })
   }

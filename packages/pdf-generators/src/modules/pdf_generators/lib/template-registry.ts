@@ -1,39 +1,52 @@
-import type { TemplateRegistryEntry } from './interfaces'
+import type { TemplateMeta, TemplateRegistryEntry, PdfTemplateDefinition } from './interfaces'
 
-const INTERNAL_KEY = '__openMercatoPdfGeneratorsInternal__'
-const EXTERNAL_KEY = '__openMercatoPdfGeneratorsExternal__'
+export type { TemplateMeta, PdfTemplateDefinition }
+export type { TemplateId } from './types'
 
-function readGlobal<T>(key: string): T[] {
-  try {
-    const value = (globalThis as Record<string, unknown>)[key]
-    return Array.isArray(value) ? (value as T[]) : []
-  } catch {
-    return []
+export interface LoadedTemplate extends PdfTemplateDefinition {
+  data: Record<string, unknown>
+}
+
+class TemplateRegistry {
+  private internal: TemplateRegistryEntry[] = []
+  private external: TemplateRegistryEntry[] = []
+
+  registerInternal(entries: TemplateRegistryEntry[]): void {
+    this.internal = entries
+  }
+
+  registerExternal(entries: TemplateRegistryEntry[]): void {
+    this.external = entries
+  }
+
+  getInternal(): TemplateRegistryEntry[] {
+    return this.internal
+  }
+
+  getExternal(): TemplateRegistryEntry[] {
+    return this.external
+  }
+
+  getAll(): TemplateRegistryEntry[] {
+    return [...this.getInternal(), ...this.getExternal()]
+  }
+
+  getMetas(): { internal: TemplateMeta[]; external: TemplateMeta[] } {
+    const toMeta = ({ id, label, description, category, tags, moduleId }: TemplateRegistryEntry): TemplateMeta =>
+      ({ id, label, description, category, tags, moduleId })
+    return {
+      internal: this.getInternal().map(toMeta),
+      external: this.getExternal().map(toMeta),
+    }
+  }
+
+  async load(id: string, record: unknown): Promise<LoadedTemplate> {
+    const entry = this.getAll().find((t) => t.id === id)
+    if (!entry) throw new Error(`Unknown template: ${id}`)
+    const component = await entry.load()
+    const data = entry.fromRecord(record)
+    return { id: entry.id, label: entry.label, description: entry.description, category: entry.category, tags: entry.tags, moduleId: entry.moduleId, component, data }
   }
 }
 
-function writeGlobal<T>(key: string, entries: T[]): void {
-  try {
-    ;(globalThis as Record<string, unknown>)[key] = entries
-  } catch {}
-}
-
-export function registerInternalTemplates(entries: TemplateRegistryEntry[]): void {
-  writeGlobal(INTERNAL_KEY, entries)
-}
-
-export function registerExternalTemplates(entries: TemplateRegistryEntry[]): void {
-  writeGlobal(EXTERNAL_KEY, entries)
-}
-
-export function getInternalTemplates(): TemplateRegistryEntry[] {
-  return readGlobal<TemplateRegistryEntry>(INTERNAL_KEY)
-}
-
-export function getExternalTemplates(): TemplateRegistryEntry[] {
-  return readGlobal<TemplateRegistryEntry>(EXTERNAL_KEY)
-}
-
-export function getAllTemplates(): TemplateRegistryEntry[] {
-  return [...getInternalTemplates(), ...getExternalTemplates()]
-}
+export const templateRegistry = new TemplateRegistry()

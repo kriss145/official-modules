@@ -20,10 +20,10 @@ const pdfGeneratorsPlugin: GeneratorPlugin = {
   bootstrapRegistration: {
     entriesExportName: 'pdfGeneratorTemplateEntries',
     registrationImports: [
-      `import { registerExternalTemplates } from '@open-mercato/pdf-generators/modules/pdf_generators/lib/template-registry'`,
+      `import { templateRegistry } from '@open-mercato/pdf-generators/modules/pdf_generators/lib/template-registry'`,
     ],
     buildCall: (name: string) =>
-      `registerExternalTemplates(${name}.flatMap((e) => e.templates))`,
+      `templateRegistry.registerExternal(${name}.flatMap((e) => e.templates))`,
   },
 }
 

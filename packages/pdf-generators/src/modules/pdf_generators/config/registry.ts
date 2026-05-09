@@ -1,5 +1,5 @@
 import type { TemplateRegistryEntry } from '../lib/interfaces'
-import { registerInternalTemplates } from '../lib/template-registry'
+import { templateRegistry } from '../lib/template-registry'
 import { normalizeRecord as quoteNormalizeRecord } from '../templates/sales/quotes/data/normalize-record'
 
 const BUILT_IN_TEMPLATES: TemplateRegistryEntry[] = [
@@ -15,7 +15,7 @@ const BUILT_IN_TEMPLATES: TemplateRegistryEntry[] = [
   },
 ]
 
-registerInternalTemplates(BUILT_IN_TEMPLATES)
+templateRegistry.registerInternal(BUILT_IN_TEMPLATES)
 
 // Keep REGISTRY export for TemplateId type derivation
 export const REGISTRY = BUILT_IN_TEMPLATES

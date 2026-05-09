@@ -6,7 +6,7 @@ import { useT } from '@open-mercato/shared/lib/i18n/context'
 import { apiCall } from '@open-mercato/ui/backend/utils/apiCall'
 import React from 'react'
 import type { ColumnDef } from '@tanstack/react-table'
-import type { TemplateMeta } from '../../lib/templates'
+import type { TemplateMeta } from '../../lib/interfaces'
 
 type TemplatesResponse = { internal: TemplateMeta[]; external: TemplateMeta[] }
 

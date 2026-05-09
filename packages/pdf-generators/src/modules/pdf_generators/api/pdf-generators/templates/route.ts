@@ -1,11 +1,7 @@
 import type { OpenApiRouteDoc } from '@open-mercato/shared/lib/openapi'
 import { NextResponse } from 'next/server'
-import { getInternalTemplates, getExternalTemplates } from '../../../lib/template-registry'
-import type { TemplateMeta } from '../../../lib/interfaces'
-
-function toMeta({ id, label, description, category, tags, moduleId }: TemplateMeta): TemplateMeta {
-  return { id, label, description, category, tags, moduleId }
-}
+import '../../../config/registry' // registers built-in templates as side effect
+import { templateRegistry } from '../../../lib/template-registry'
 
 export const metadata = {
   path: '/pdf-generators/templates',
@@ -13,10 +9,7 @@ export const metadata = {
 }
 
 export async function GET() {
-  return NextResponse.json({
-    internal: getInternalTemplates().map(toMeta),
-    external: getExternalTemplates().map(toMeta),
-  })
+  return NextResponse.json(templateRegistry.getMetas())
 }
 
 export const openApi: OpenApiRouteDoc = {
