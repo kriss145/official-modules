@@ -4,7 +4,7 @@
 **Key Points:**
 - The `@open-mercato/pdf-generators` module is a **universal PDF generation engine** — any module in OpenMercato can inject a widget that generates PDFs from its own data.
 - A user opens a PDF tab in any supported detail view, picks a template from a list, previews the PDF live, then downloads the final file.
-- Quote/Sales is the first supported module; Orders, Invoices, or any other entity can be added independently.
+- Quote/Sales and Orders are the first supported modules; any other entity can be added independently.
 
 **Scope:**
 - Universal template registry — globalThis-based, split into **internal** (built-in) and **external** (injected by other modules via code-gen) registries
@@ -63,20 +63,23 @@ An external community module (`packages/pdf-generators/`) extending OpenMercato 
 | Templates as code (JSX), not database config | Git-versioned, full typographic control, no visual editor required |
 | Data from `context.record`, not a fetch | Widget already receives full record from the framework — no redundant API call |
 | Normalization server-side in `loadTemplate()` | Client sends raw `record`; server normalizes before render — validation and mapping at the API boundary, not scattered across the frontend |
-| `normalizeRecord` per entity in `templates/<module>/<entity>/data/` | Co-located with the record types it consumes; reusable by all templates for the same entity |
+| `normalizeRecord` encapsulated in `BaseDocumentService` subclass | Each entity's mapping lives in one class — adding a new entity = new service subclass, no changes to existing code |
 | `PdfDocumentData` lives in `templates/<module>/<entity>/templates/<name>/types.ts` | Type is a contract between the normalizer and the template component, not a global concern |
 | `Record<string, unknown>` in route and components | Route and UI components are template-agnostic; type safety lives at the normalizer→template boundary |
 | Template folder convention `templates/<module>/<entity>/templates/<name>/` | Mirrors the domain hierarchy — adding a new module = new top-level folder, no changes elsewhere |
+| `BaseDocumentService` base class for all document services | Centralizes `registerTemplate()`, `getEntries()`, and `formatDate()` — subclasses implement only `normalizeRecord()` and identity fields |
+| `config/registry.ts` aggregates all internal services in one `registerInternal([...])` call | `registerInternal` replaces the array — multiple calls would clobber each other; all built-in services must be spread into a single call |
 | globalThis-based dual registry (internal + external) | Decoupled: internal templates ship with the module; external templates are injected at bootstrap from generated code |
 | `GET /api/pdf-generators/templates` endpoint | Client needs the list at runtime to filter and display available templates without bundling the registry |
 | `generators.ts` plugin for code-gen | External modules declare templates in `pdf-generators.ts`; `mercato generate registry` produces the bootstrap glue |
-| `moduleId` = target module, not source package | A template declares which module's data it consumes (`'quotes'`, `'orders'`) — not which package ships it. Widgets filter by `moduleId` to get only templates compatible with their data shape. |
+| `moduleId` = target module, not source package | A template declares which module's data it consumes (`'quotes'`, `'sales'`) — not which package ships it. Widgets filter by `moduleId` to get only templates compatible with their data shape. |
 | `fromRecord` in registry entry (server-side) | Template owns its normalization logic — widget is fully decoupled from data shape. Adding a new template for `quotes` requires zero changes to the widget. |
-| Tab widget (`quote_pdf_tab`) not action button | PDF is a contextual view of the record, not a one-shot action |
+| Tab widget per entity, not action button | PDF is a contextual view of the record, not a one-shot action |
 | Preview via iframe + blob URL, not PDFViewer | Server renders the PDF once (`renderToBuffer`), iframe displays the result — no client-side re-render on every change |
 | Fonts as base64 `*.generated.ts` per font | Works on the server (no filesystem path issues); tree-shakeable per font |
 | `renderToBuffer` on the server | Deterministic output, no dependency on client environment |
 | Files not stored in object storage | MVP — PDF returned directly as stream |
+| `examples/` folder at package root (outside `src/`) | Working reference implementation for external template authors — not published, not built, imports from `@open-mercato/pdf-generators` via monorepo workspace |
 
 ---
 
@@ -114,59 +117,78 @@ An external community module (`packages/pdf-generators/`) extending OpenMercato 
 ### Module Structure
 
 ```
-src/modules/pdf_generators/
-├── config/
-│   └── registry.ts              # internal REGISTRY array — add templates here
-├── lib/
-│   ├── interfaces.ts            # TemplateMeta, TemplateRegistryEntry, PdfTemplateDefinition
-│   ├── types.ts                 # TemplateId (derived from REGISTRY)
-│   ├── templates.ts             # getTemplateMetas(), loadTemplate()
-│   └── template-registry.ts    # globalThis-based internal/external registry
-├── components/
-│   ├── TemplatesList.tsx        # Fetches templates, filters, shows list + opens PreviewPanel
-│   ├── TemplatesListView.tsx    # Grid of TemplateListItem cards
-│   ├── TemplatesListLoader.tsx  # Loading skeleton
-│   ├── TemplateListItem.tsx     # Single template card
-│   ├── PreviewPanel.tsx         # Fullscreen dialog: fetch blob → Preview + download
-│   ├── Preview.tsx              # iframe rendering blob URL
-│   └── Loader.tsx               # Spinner used in PreviewPanel while fetching
-├── templates/
-│   ├── shared/
-│   │   └── fonts/
-│   │       ├── Inter-Regular.ttf
-│   │       ├── Inter-Regular.generated.ts   # base64 data URI (build-generated)
-│   │       └── ...
-│   └── sales/                   # top-level module (e.g. sales, orders)
-│       └── quotes/              # entity within the module
-│           ├── data/
-│           │   ├── types.ts     # QuoteWidgetRecord, QuoteWidgetContext
-│           │   └── normalize-record.ts  # normalizeRecord(record) → PdfDocumentData shape
-│           └── templates/
-│               └── sales-offer/
-│                   ├── types.ts # PdfDocumentData (template-specific contract)
-│                   ├── theme.ts # Font.register() + color tokens
-│                   ├── index.tsx# SalesOfferDocument component
-│                   ├── CoverPage.tsx
-│                   └── QuotePage.tsx
-├── widgets/
-│   ├── injection-table.ts       # spot → widget mapping
-│   └── injection/
-│       └── quote_pdf_tab/
-│           ├── widget.ts        # widget metadata (id: pdf_generators.injection.quote_pdf_tab)
-│           └── widget.client.tsx# QuotePdfTabWidget — renders TemplatesList
-├── utils/
-│   └── downloadBlob.ts         # downloadBlob(url, filename) — triggers browser download
-├── generators.ts                # GeneratorPlugin for pdf-generators.templates (code-gen)
-├── api/
-│   └── pdf-generators/
-│       ├── generate/
-│       │   └── route.ts         # POST /api/pdf-generators/generate
-│       └── templates/
-│           └── route.ts         # GET /api/pdf-generators/templates
-├── backend/
-│   └── pdf-generators/
-│       └── page.tsx             # /backend/pdf-generators
-└── acl.ts
+packages/pdf-generators/
+├── examples/                        # Working reference for external template authors (not built/published)
+│   ├── README.md
+│   ├── pdf-generators.ts            # Convention file example
+│   ├── invoice/
+│   │   ├── example-invoice-document-service.ts
+│   │   └── templates/example-invoice/
+│   │       ├── types.ts
+│   │       └── index.tsx
+│   └── widgets/
+│       ├── injection-table.ts
+│       └── injection/order-pdf-tab/
+│           ├── widget.ts
+│           └── widget.client.tsx
+└── src/modules/pdf_generators/
+    ├── config/
+    │   └── registry.ts              # Single registerInternal([...all services]) call
+    ├── lib/
+    │   ├── interfaces.ts            # TemplateMeta, TemplateRegistryEntry, PdfTemplateDefinition
+    │   ├── types.ts                 # TemplateId (derived from REGISTRY)
+    │   └── template-registry.ts    # Class-based registry: registerInternal / registerExternal / getAll
+    ├── services/
+    │   ├── index.ts                 # Re-exports all services and their types
+    │   ├── base-document-service.ts # Abstract base: registerTemplate(), getEntries(), formatDate()
+    │   ├── quotes-document-service.ts  # QuotesDocumentService — moduleId: 'quotes'
+    │   └── orders-document-service.ts  # OrdersDocumentService — moduleId: 'sales'
+    ├── components/
+    │   ├── TemplatesList.tsx        # Fetches templates, filters, shows list + opens PreviewPanel
+    │   ├── TemplatesListView.tsx    # Grid of TemplateListItem cards
+    │   ├── TemplatesListLoader.tsx  # Loading skeleton
+    │   ├── TemplateListItem.tsx     # Single template card
+    │   ├── PreviewPanel.tsx         # Fullscreen dialog: fetch blob → Preview + download
+    │   ├── Preview.tsx              # iframe rendering blob URL
+    │   └── Loader.tsx               # Spinner used in PreviewPanel while fetching
+    ├── templates/
+    │   ├── shared/
+    │   │   ├── components/
+    │   │   │   └── Logo.tsx         # OpenMercatoLogo — exported publicly for external templates
+    │   │   ├── theme.ts             # colors, borders, spacing + Inter font registration (side-effect import)
+    │   │   └── fonts/
+    │   │       ├── Inter-Regular.ttf
+    │   │       ├── Inter-Regular.generated.ts   # base64 data URI (build-generated)
+    │   │       └── ...
+    │   └── sales/
+    │       ├── quotes/templates/sales-offer/
+    │       │   ├── types.ts         # PdfDocumentData for sales-offer
+    │       │   ├── index.tsx        # SalesOfferDocument
+    │       │   ├── CoverPage.tsx
+    │       │   └── QuotePage.tsx
+    │       └── orders/templates/order-invoice/
+    │           ├── types.ts         # OrderInvoiceData
+    │           └── index.tsx        # OrderInvoiceDocument
+    ├── widgets/
+    │   ├── injection-table.ts       # spot → widget mapping (quotes + orders)
+    │   └── injection/
+    │       ├── quote_pdf_tab/
+    │       │   ├── widget.ts        # id: pdf_generators.injection.quote_pdf_tab
+    │       │   └── widget.client.tsx# filter: { category: 'quote', moduleId: 'quotes' }
+    │       └── order_pdf_tab/
+    │           ├── widget.ts        # id: pdf_generators.injection.order_pdf_tab
+    │           └── widget.client.tsx# filter: { category: 'invoice', moduleId: 'sales' }
+    ├── utils/
+    │   ├── downloadBlob.ts
+    │   └── formatDate.ts
+    ├── generators.ts                # GeneratorPlugin for pdf-generators.templates (code-gen)
+    ├── api/
+    │   └── pdf-generators/
+    │       ├── generate/route.ts    # POST /api/pdf-generators/generate
+    │       └── templates/route.ts  # GET /api/pdf-generators/templates
+    ├── backend/pdf-generators/
+    │   └── page.tsx                 # /backend/pdf-generators
+    └── acl.ts
 ```
 
 ---
@@ -175,16 +197,26 @@ src/modules/pdf_generators/
 
 ### Template Registry
 
-Two separate registries backed by `globalThis`:
+Two separate registries managed by `TemplateRegistry` class (singleton `templateRegistry`):
 
 ```ts
 // lib/template-registry.ts
-registerInternalTemplates(entries: TemplateRegistryEntry[]): void  // called by config/registry.ts at init
-registerExternalTemplates(entries: TemplateRegistryEntry[]): void  // called by bootstrap (generated code)
-getInternalTemplates(): TemplateRegistryEntry[]
-getExternalTemplates(): TemplateRegistryEntry[]
-getAllTemplates(): TemplateRegistryEntry[]
+registerInternal(entries: TemplateRegistryEntry[]): void  // called ONCE by config/registry.ts — replaces array
+registerExternal(entries: TemplateRegistryEntry[]): void  // called by bootstrap (generated code) — replaces array
+getInternal(): TemplateRegistryEntry[]
+getExternal(): TemplateRegistryEntry[]
+getAll(): TemplateRegistryEntry[]
+getMetas(): { internal: TemplateMeta[], external: TemplateMeta[] }
+load(id, record): Promise<LoadedTemplate>  // normalizes + loads template component
 ```
+
+> **Critical**: `registerInternal` replaces the entire internal array. All built-in services must be combined into one call in `config/registry.ts`:
+> ```ts
+> templateRegistry.registerInternal([
+>   ...quotesService.getEntries(),
+>   ...ordersService.getEntries(),
+> ])
+> ```
 
 ```ts
 // lib/interfaces.ts
@@ -227,34 +259,32 @@ interface PdfDocumentData {
 }
 ```
 
-### Record Normalizer
+### Document Services
 
-Each entity folder contains `normalize-record.ts` — a pure function that maps raw `context.record` to a shape the template understands. Called server-side by `loadTemplate()`:
+Each entity has a `DocumentService` class extending `BaseDocumentService`. The service owns template registration and record normalization for that entity:
 
 ```ts
-// templates/sales/quotes/data/normalize-record.ts
-export function normalizeRecord(record: unknown): Record<string, unknown> {
-  const r = record as QuoteWidgetRecord
-  return { document: { number: r.quoteNumber, ... }, client: { ... }, ... }
+// services/quotes-document-service.ts
+export class QuotesDocumentService extends BaseDocumentService {
+  readonly id = 'quotes'          // globally unique service ID
+  readonly label = 'Quotes'
+  readonly moduleId = 'quotes'    // used by TemplatesList filter
+
+  constructor() {
+    super()
+    this.registerTemplate({ id: 'sales-offer', category: 'quote', load: () => import('...'), ... })
+  }
+
+  normalizeRecord(record: unknown): Record<string, unknown> { ... }
 }
 ```
 
-Referenced in `config/registry.ts` as `fromRecord: normalizeRecord` per template entry.
+`BaseDocumentService` provides:
+- `registerTemplate(entry)` — registers a lazy-loaded template
+- `getEntries()` — returns `TemplateRegistryEntry[]` with `moduleId` and `fromRecord` bound to the instance
+- `formatDate(iso)` — formats ISO string to locale date
 
-### Widget Context Types
-
-```ts
-// templates/sales/quotes/data/types.ts
-interface QuoteWidgetRecord { /* fields from context.record */ }
-interface QuoteWidgetContext {
-  kind: string
-  resourceId: string
-  resourceKind: string
-  record: QuoteWidgetRecord
-}
-```
-
-`QuoteWidgetRecord` is exported publicly from `@open-mercato/pdf-generators` for use by external template authors.
+`OrderWidgetRecord` and `QuoteWidgetRecord` are exported publicly from `@open-mercato/pdf-generators` for use by external template authors.
 
 ---
 
@@ -352,20 +382,28 @@ Template overview — list of registered templates with labels and descriptions.
 
 ### Adding a new built-in template for an existing entity
 
-1. Add template component in `templates/<module>/<entity>/templates/<new-template>/`
-2. Register in `config/registry.ts` — point `fromRecord` to existing `normalize-record.ts`
+1. Add template component in `templates/<module>/<entity>/templates/<new-template>/` with `types.ts` and `index.tsx`
+2. Call `this.registerTemplate(...)` in the existing entity's `DocumentService` constructor
+3. Spread the service's entries in the single `registerInternal([...])` call in `config/registry.ts` — it is already there
 
 No other file changes required.
 
-### Adding PDF generation for a new module/entity (e.g. Orders)
+### Adding PDF generation for a new entity (e.g. Shipments)
 
-1. Create `templates/orders/orders/data/` with `types.ts` and `normalize-record.ts`
-2. Add template component in `templates/orders/orders/templates/<template-name>/`
-3. Register in `config/registry.ts`
-4. Create `widgets/injection/order_pdf_tab/` with `widget.ts`, `widget.client.tsx`
-5. Add entry to `widgets/injection-table.ts`
+1. Create `services/shipments-document-service.ts` extending `BaseDocumentService`
+2. Add template component in `templates/sales/shipments/templates/<template-name>/`
+3. Add the new service to the spread in `config/registry.ts`:
+   ```ts
+   templateRegistry.registerInternal([
+     ...quotesService.getEntries(),
+     ...ordersService.getEntries(),
+     ...shipmentsService.getEntries(),  // ← add here
+   ])
+   ```
+4. Create `widgets/injection/<entity>_pdf_tab/` with `widget.ts` and `widget.client.tsx`
+5. Add slot entry to `widgets/injection-table.ts`
 
-No changes to existing code required.
+No changes to existing services or templates required.
 
 ### Registering an external template from another module
 
@@ -408,11 +446,13 @@ No changes to existing code required.
 
 ### Phase 2 — Templates & Registry ✅
 
-1. `config/registry.ts` — REGISTRY array with `fromRecord` per entry
-2. `lib/interfaces.ts`, `lib/types.ts`, `lib/templates.ts` (`loadTemplate(id, record)` normalizes + loads)
-3. `templates/shared/fonts/` + font build pipeline in `build.mjs`
-4. `templates/sales/quotes/data/` — `types.ts`, `normalize-record.ts`
-5. `templates/sales/quotes/templates/sales-offer/` — `types.ts`, `theme.ts`, `CoverPage.tsx`, `QuotePage.tsx`, `index.tsx`
+1. `lib/interfaces.ts`, `lib/types.ts`, `lib/template-registry.ts` — class-based registry with `registerInternal` / `registerExternal` / `load`
+2. `services/base-document-service.ts` — abstract base class
+3. `services/quotes-document-service.ts` — `QuotesDocumentService` with `sales-offer` template
+4. `config/registry.ts` — single `registerInternal([...])` call
+5. `templates/shared/fonts/` + font build pipeline in `build.mjs`
+6. `templates/shared/theme.ts` + `templates/shared/components/Logo.tsx` — shared design tokens and brand components exported publicly
+7. `templates/sales/quotes/templates/sales-offer/` — `types.ts`, `CoverPage.tsx`, `QuotePage.tsx`, `index.tsx`
 
 ### Phase 3 — API ✅
 
@@ -427,14 +467,25 @@ No changes to existing code required.
 4. `components/Preview.tsx` — iframe rendering a blob URL
 5. `components/Loader.tsx` — spinner
 6. `utils/downloadBlob.ts` — triggers browser file download
-7. `widgets/injection/quote_pdf_tab/` — first reference widget: `widget.ts`, `widget.client.tsx` (passes raw `record` to `TemplatesList`)
+7. `widgets/injection/quote_pdf_tab/` — `widget.ts`, `widget.client.tsx` — filter: `{ category: 'quote', moduleId: 'quotes' }`
 8. `widgets/injection-table.ts` — injection spot mapping
 
 ### Phase 4.5 — External Template Code-Gen ✅
 
 1. `generators.ts` — `pdf-generators.templates` GeneratorPlugin
 2. Convention file pattern: `pdf-generators.ts` in consuming module exports `templates: TemplateRegistryEntry[]`
-3. `mercato generate registry` produces `pdf-generators.generated.ts` that calls `registerExternalTemplates(...)`
+3. `mercato generate registry` produces `pdf-generators.generated.ts` that calls `registerExternal(...)`
+
+### Phase 4.6 — Orders Built-in Template ✅
+
+1. `services/orders-document-service.ts` — `OrdersDocumentService` (moduleId: `'sales'`) with `order-invoice` template
+2. `templates/sales/orders/templates/order-invoice/` — `types.ts`, `index.tsx` (`OrderInvoiceDocument`)
+3. `services/index.ts` updated — exports `OrdersDocumentService`, `ORDERS_TEMPLATE_IDS`, `OrderWidgetRecord`
+4. `config/registry.ts` updated — single `registerInternal([...quotesService, ...ordersService])` call
+5. `widgets/injection/order_pdf_tab/` — `widget.ts`, `widget.client.tsx` — filter: `{ category: 'invoice', moduleId: 'sales' }`
+6. `widgets/injection-table.ts` updated — added `sales.document.detail.order:tabs` slot
+7. `examples/` folder added at package root — complete working invoice example for external template authors (`pdf-generators.ts`, service, template, widget, injection-table)
+8. `scaffold-pdf-templates` Claude Code skill added — guides generation of the full integration layer for external modules
 
 ### Phase 5 — History & Backend Page (Planned)
 
@@ -502,3 +553,4 @@ No changes to existing code required.
 | 2026-05-08 | Krzysztof Polak | `templateIds` filtering replaced by `TemplateFilter { category, tags, moduleId }` — templates declare `category`, `tags[]`, `moduleId` at registration; `TemplatesList` accepts `filter` prop instead of `templateIds`; OR logic for tags |
 | 2026-05-08 | Krzysztof Polak | `fromRecord` mapper moved from `data/quote-detail/document-data.ts` into each `TemplateRegistryEntry` — template owns its own data mapping; widget passes raw `record` to `TemplatesList`; `document-data.ts` removed; `TemplatesList` resolves mapper from globalThis registry on template selection |
 | 2026-05-09 | Krzysztof Polak | Normalization moved server-side: `POST /generate` now accepts `{ template_id, record }` instead of `{ template_id, data }`; `loadTemplate(id, record)` calls `entry.fromRecord(record)` server-side; client no longer needs registry import side effect; template folder convention changed to `templates/<module>/<entity>/templates/<name>/` + `templates/<module>/<entity>/data/`; `QuoteWidgetRecord` exported publicly from package root |
+| 2026-05-09 | Krzysztof Polak | Introduced `BaseDocumentService` base class — `registerTemplate()`, `getEntries()`, `formatDate()` centralised; `QuotesDocumentService` and `OrdersDocumentService` as subclasses; `normalizeRecord` per service replaces standalone `normalize-record.ts` files; `config/registry.ts` uses single `registerInternal([...spread])` call to avoid array clobber; built-in `order-invoice` template added (`OrderInvoiceDocument`); `order_pdf_tab` widget added; `examples/` reference folder added; `scaffold-pdf-templates` skill added; sandbox example PDF implementation removed (superseded by built-in) |
