@@ -1,6 +1,6 @@
 import React from 'react'
 import { Page, View, Text, StyleSheet } from '@react-pdf/renderer'
-import { colors } from './theme'
+import { colors } from '../../../../shared/theme'
 import type { PdfDocumentData } from './types'
 
 const styles = StyleSheet.create({

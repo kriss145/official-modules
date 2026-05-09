@@ -1,5 +1,5 @@
 import { Document } from '@react-pdf/renderer'
-import './theme'
+import '../../../../shared/theme' // registers Inter font family as side effect
 import { CoverPage } from './CoverPage'
 import { QuotePage } from './QuotePage'
 import type { PdfDocumentData } from './types'
