@@ -20,11 +20,11 @@ import { downloadBlob } from '../utils/downloadBlob'
 interface PreviewPanelProps {
   open: boolean
   onClose: () => void
-  data: Record<string, unknown>
+  record: unknown
   template: TemplateMeta
 }
 
-export function PreviewPanel({ open, onClose, data, template }: PreviewPanelProps) {
+export function PreviewPanel({ open, onClose, record, template }: PreviewPanelProps) {
   const t = useT()
   const [blobUrl, setBlobUrl] = React.useState<string | null>(null)
   const [loading, setLoading] = React.useState(true)
@@ -40,7 +40,7 @@ export function PreviewPanel({ open, onClose, data, template }: PreviewPanelProp
     apiCall('/api/pdf-generators/generate', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ template_id: template.id, data }),
+      body: JSON.stringify({ template_id: template.id, record }),
     }, {
       parse: (res) => res.blob(),
     })

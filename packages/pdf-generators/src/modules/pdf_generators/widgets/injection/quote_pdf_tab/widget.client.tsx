@@ -2,10 +2,7 @@
 
 import type { InjectionWidgetComponentProps } from '@open-mercato/shared/modules/widgets/injection'
 import { TemplatesList } from '../../../components/TemplatesList'
-import type { QuoteWidgetContext } from '../../../data/quote-detail/types'
-
-// Side effect: registers internal templates in the client-side globalThis registry
-import '../../../config/registry'
+import type { QuoteWidgetContext } from '../../../templates/sales/quotes/data/types'
 
 export default function QuotePdfTabWidget({ context }: InjectionWidgetComponentProps) {
   const ctx = context as QuoteWidgetContext

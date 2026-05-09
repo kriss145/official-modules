@@ -1,7 +1,7 @@
 import { Font } from '@react-pdf/renderer'
-import InterRegular from '../shared/fonts/Inter-Regular.generated'
-import InterMedium from '../shared/fonts/Inter-Medium.generated'
-import InterSemiBold from '../shared/fonts/Inter-SemiBold.generated'
+import InterRegular from '../../../../shared/fonts/Inter-Regular.generated'
+import InterMedium from '../../../../shared/fonts/Inter-Medium.generated'
+import InterSemiBold from '../../../../shared/fonts/Inter-SemiBold.generated'
 
 Font.register({
   family: 'Inter',

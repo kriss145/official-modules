@@ -1,6 +1,6 @@
 import type { TemplateRegistryEntry } from '../lib/interfaces'
 import { registerInternalTemplates } from '../lib/template-registry'
-import { normalizeRecord as quoteNormalizeRecord } from '../data/quote-detail/normalize-record'
+import { normalizeRecord as quoteNormalizeRecord } from '../templates/sales/quotes/data/normalize-record'
 
 const BUILT_IN_TEMPLATES: TemplateRegistryEntry[] = [
   {
@@ -11,7 +11,7 @@ const BUILT_IN_TEMPLATES: TemplateRegistryEntry[] = [
     tags: ['offer', 'sales'],
     moduleId: 'quotes',
     fromRecord: quoteNormalizeRecord,
-    load: () => import('../templates/sales-offer').then((m) => m.SalesOfferDocument as unknown as React.ComponentType<{ data: Record<string, unknown> }>),
+    load: () => import('../templates/sales/quotes/templates/sales-offer').then((m) => m.SalesOfferDocument as unknown as React.ComponentType<{ data: Record<string, unknown> }>),
   },
 ]
 

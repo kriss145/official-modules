@@ -4,7 +4,6 @@ import * as React from 'react'
 import { apiCall } from '@open-mercato/ui/backend/utils/apiCall'
 import { useT } from '@open-mercato/shared/lib/i18n/context'
 import type { TemplateMeta, TemplateFilter } from '../lib/interfaces'
-import { getAllTemplates } from '../lib/template-registry'
 import { PreviewPanel } from './PreviewPanel'
 import { TemplatesListView } from './TemplatesListView'
 import { TemplatesListLoader } from './TemplatesListLoader'
@@ -28,7 +27,7 @@ export function TemplatesList({ record, filter }: TemplatesListProps) {
   const t = useT()
   const [templates, setTemplates] = React.useState<TemplateMeta[]>([])
   const [loading, setLoading] = React.useState(true)
-  const [selected, setSelected] = React.useState<{ meta: TemplateMeta; data: Record<string, unknown> } | null>(null)
+  const [selected, setSelected] = React.useState<TemplateMeta | null>(null)
 
   React.useEffect(() => {
     apiCall<{ internal: TemplateMeta[]; external: TemplateMeta[] }>('/api/pdf-generators/templates')
@@ -43,25 +42,19 @@ export function TemplatesList({ record, filter }: TemplatesListProps) {
       .finally(() => setLoading(false))
   }, [])
 
-  function handleSelect(meta: TemplateMeta) {
-    const entry = getAllTemplates().find((e) => e.id === meta.id)
-    const data = entry ? entry.fromRecord(record) : {}
-    setSelected({ meta, data })
-  }
-
   if (loading) return <TemplatesListLoader />
 
   return (
     <>
       <h2 className="mb-4 text-sm font-semibold">{t('pdf_generators.templates.title', 'Dostępne szablony PDF')}</h2>
-      <TemplatesListView templates={templates} onSelect={handleSelect} />
+      <TemplatesListView templates={templates} onSelect={setSelected} />
 
       {selected && (
         <PreviewPanel
           open={true}
           onClose={() => setSelected(null)}
-          data={selected.data}
-          template={selected.meta}
+          record={record}
+          template={selected}
         />
       )}
     </>

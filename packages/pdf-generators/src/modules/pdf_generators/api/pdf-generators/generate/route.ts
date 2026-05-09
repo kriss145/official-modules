@@ -10,7 +10,7 @@ export const metadata = {
 }
 
 export async function POST(request: Request) {
-  let body: { template_id: TemplateId; data: Record<string, unknown> }
+  let body: { template_id: TemplateId; record: unknown }
 
   try {
     body = await request.json()
@@ -18,20 +18,20 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
   }
 
-  const { template_id, data } = body
+  const { template_id, record } = body
 
-  if (!template_id || !data) {
-    return NextResponse.json({ error: 'Missing template_id or data' }, { status: 400 })
+  if (!template_id || !record) {
+    return NextResponse.json({ error: 'Missing template_id or record' }, { status: 400 })
   }
 
   let template
   try {
-    template = await loadTemplate(template_id)
+    template = await loadTemplate(template_id, record)
   } catch {
     return NextResponse.json({ error: `Unknown template: ${template_id}` }, { status: 400 })
   }
 
-  const element = React.createElement(template.component, { data }) as React.ReactElement<DocumentProps>
+  const element = React.createElement(template.component, { data: template.data }) as React.ReactElement<DocumentProps>
   const buffer = await renderToBuffer(element)
 
   return new NextResponse(new Uint8Array(buffer), {
@@ -48,7 +48,7 @@ export const openApi: OpenApiRouteDoc = {
       summary: 'Generate PDF document',
       responses: [
         { status: 200, description: 'PDF file stream' },
-        { status: 400, description: 'Missing or invalid template_id / data' },
+        { status: 400, description: 'Missing or invalid template_id / record' },
         { status: 401, description: 'Unauthorized' },
       ],
     },

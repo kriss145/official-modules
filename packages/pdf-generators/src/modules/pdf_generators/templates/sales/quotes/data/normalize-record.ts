@@ -1,5 +1,5 @@
 import type { QuoteWidgetRecord } from './types'
-import { formatDate } from '../../utils/formatDate'
+import { formatDate } from '../../../../utils/formatDate'
 
 export function normalizeRecord(record: unknown): Record<string, unknown> {
   const r = record as QuoteWidgetRecord
