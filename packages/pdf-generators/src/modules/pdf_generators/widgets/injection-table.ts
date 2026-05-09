@@ -8,6 +8,13 @@ export const injectionTable: ModuleInjectionTable = {
       kind: 'tab',
     },
   ],
+  'sales.document.detail.order:tabs': [
+    {
+      widgetId: 'pdf_generators.injection.order_pdf_tab',
+      priority: 10,
+      kind: 'tab',
+    },
+  ],
 }
 
 export default injectionTable
