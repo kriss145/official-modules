@@ -161,6 +161,26 @@ Community modules live in `packages/<module-name>/` and are published under the 
 spec-writing  →  scaffold-module  →  implement-spec
 ```
 
+### AI Skills setup
+
+This repo ships AI agent skills for Claude Code (and Codex) in `.ai/skills/`. Run this once after cloning to make them available in your editor:
+
+```bash
+yarn install-skills
+```
+
+This creates symlinks from `.ai/skills/` into `.claude/skills/` and `.codex/skills/`. After that, open Claude Code in this directory and the skills are available as slash commands:
+
+| Skill | Trigger |
+|-------|---------|
+| `spec-writing` | `/spec-writing` — design a new module spec |
+| `scaffold-module` | `/scaffold-module` — generate package skeleton from spec |
+| `implement-spec` | `/implement-spec` — implement spec phases with tests |
+| `scaffold-pdf-templates` | `/scaffold-pdf-templates` — add PDF templates to a module |
+| `code-commenting` | `/code-commenting` — apply JSDoc comment conventions |
+
+You only need to run `yarn install-skills` once per clone. If you add a new skill to `.ai/skills/`, it is immediately available via the symlink — no re-run needed.
+
 ### Step 1 — Write a spec
 
 Before writing code, document your module in `.ai/specs/SPEC-XXX-YYYY-MM-DD-<title>.md`. This is the design document that `implement-spec` reads to know what to build.
