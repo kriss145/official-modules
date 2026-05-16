@@ -55,6 +55,21 @@ export interface QuoteWidgetRecord {
     postalCode: string | number | null // API returns string or number depending on country
     country: string | null
   } | null
+  /** Populated server-side by enrichRecord — not present in the raw widget context. */
+  lineItems?: QuoteLineItem[]
+}
+
+export interface QuoteLineItem {
+  id: string
+  name: string | null
+  description: string | null
+  quantity: string
+  unitPriceNet: string
+  unitPriceGross: string
+  totalNetAmount: string
+  totalGrossAmount: string
+  taxRate: string
+  currencyCode: string
 }
 
 /**
@@ -85,9 +100,51 @@ export class QuotesDocumentService extends BaseDocumentService {
   }
 
   /**
-   * Maps a raw QuoteWidgetRecord into the flat data shape expected by quote PDF templates.
+   * Fetches quote line items directly from the database via the request-scoped EntityManager.
+   * Attaches them as `lineItems` on the record before normalizeRecord runs.
    *
-   * @param record - Raw record from the widget context
+   * @param record - Raw QuoteWidgetRecord from the widget context
+   * @param em - MikroORM EntityManager from createRequestContainer()
+   */
+  override async enrichRecord(record: unknown, em: unknown): Promise<unknown> {
+    const r = record as QuoteWidgetRecord
+    if (!r?.id) return record
+
+    try {
+      const conn = (em as any).getConnection() as { execute: (sql: string, params?: unknown[]) => Promise<unknown[]> }
+      const rows = await conn.execute(
+        `SELECT id, name, description, quantity, unit_price_net, unit_price_gross,
+                total_net_amount, total_gross_amount, tax_rate, currency_code
+         FROM sales_quote_lines
+         WHERE quote_id = ?
+         ORDER BY line_number ASC`,
+        [r.id]
+      )
+
+      const lineItems: QuoteLineItem[] = (rows ?? []).map((row: any) => ({
+        id: row.id,
+        name: row.name ?? null,
+        description: row.description ?? null,
+        quantity: row.quantity ?? '0',
+        unitPriceNet: row.unit_price_net ?? '0',
+        unitPriceGross: row.unit_price_gross ?? '0',
+        totalNetAmount: row.total_net_amount ?? '0',
+        totalGrossAmount: row.total_gross_amount ?? '0',
+        taxRate: row.tax_rate ?? '0',
+        currencyCode: row.currency_code,
+      }))
+
+      return { ...r, lineItems }
+    } catch (err) {
+      console.error('[QuotesDocumentService] enrichRecord failed, falling back to empty lines', err)
+      return record
+    }
+  }
+
+  /**
+   * Maps a raw QuoteWidgetRecord (enriched with lineItems) into the flat data shape expected by quote PDF templates.
+   *
+   * @param record - Raw record from the widget context, enriched with lineItems by enrichRecord
    * @returns Normalized data object passed to the template component
    */
   normalizeRecord(record: unknown): Record<string, unknown> {
@@ -103,6 +160,15 @@ export class QuotesDocumentService extends BaseDocumentService {
       billing?.region,
       billing?.country,
     ].filter(Boolean)
+
+    const lines = (r.lineItems ?? []).map((line) => ({
+      title: line.name ?? '',
+      description: line.description ?? undefined,
+      quantity: Number(line.quantity),
+      unitPrice: Number(line.unitPriceNet),
+      total: Number(line.totalNetAmount),
+      currency: line.currencyCode,
+    }))
 
     return {
       document: {
@@ -122,7 +188,7 @@ export class QuotesDocumentService extends BaseDocumentService {
         company: '',
         email: '',
       },
-      lines: [],
+      lines,
       totals: {
         subtotal: r.grandTotalNetAmount ?? 0,
         tax: r.taxTotalAmount ?? 0,

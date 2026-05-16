@@ -74,10 +74,25 @@ class TemplateRegistry {
   }
 
   /**
+   * If the entry defines enrichRecord, fetches related data via em before normalization.
+   * Pass em as unknown — concrete services cast it to EntityManager internally.
+   *
+   * @param id - Template ID
+   * @param record - Raw record from the widget context
+   * @param em - MikroORM EntityManager from the request container
+   * @returns Enriched record (with related data attached) or the original record if no enrichment is defined
+   */
+  async enrich(id: string, record: unknown, em: unknown): Promise<unknown> {
+    const entry = this.getAll().find((t) => t.id === id)
+    if (!entry?.enrichRecord) return record
+    return entry.enrichRecord(record, em)
+  }
+
+  /**
    * Normalizes the raw record via entry.fromRecord, then loads and returns the template component.
    *
    * @param id - Template ID
-   * @param record - Raw record from the server
+   * @param record - Raw record from the server (already enriched if needed)
    * @returns Loaded template with normalized data
    * @throws Error if template ID is not found in the registry
    */
