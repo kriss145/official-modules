@@ -3,7 +3,7 @@ import type { TemplateEntry } from '../lib/interfaces'
 
 /**
  * Registration shape for a single template within a document service.
- * Does not include module, entity, or fromRecord — those are supplied by the service itself.
+ * Does not include resourceKind or fromRecord — those are supplied by the service itself.
  */
 export interface DocumentTemplateEntry {
   id: string
@@ -20,13 +20,15 @@ export interface DocumentTemplateEntry {
  *
  * Each concrete service owns a set of related templates and the normalization
  * logic for converting raw widget records into the data shape those templates expect.
- * Extend this class once per module (e.g. QuotesDocumentService, InvoicesDocumentService).
+ * Extend this class once per module (e.g. QuotesDocumentService, OrdersDocumentService).
  */
 export abstract class BaseDocumentService {
   abstract readonly id: string
   abstract readonly label: string
+  /** Top-level module name — e.g. 'sales'. Used for grouping on the backend page. */
   abstract readonly module: string
-  abstract readonly entity: string
+  /** Framework resource kind — matches ctx.resourceKind in widgets. E.g. 'sales.quote'. */
+  abstract readonly resourceKind: string
 
   protected templates_: Map<string, DocumentTemplateEntry> = new Map()
 
@@ -64,7 +66,7 @@ export abstract class BaseDocumentService {
   /**
    * Registers a template with this service.
    *
-   * @param entry - Template definition without moduleId and fromRecord
+   * @param entry - Template definition without resourceKind and fromRecord
    */
   registerTemplate(entry: DocumentTemplateEntry): void {
     this.templates_.set(entry.id, entry)
@@ -72,7 +74,7 @@ export abstract class BaseDocumentService {
 
   /**
    * Returns all templates registered with this service as TemplateEntry objects,
-   * with moduleId and fromRecord bound to this service instance.
+   * with resourceKind and fromRecord bound to this service instance.
    *
    * @returns Array of registry entries ready to be passed to templateRegistry
    */
@@ -82,7 +84,7 @@ export abstract class BaseDocumentService {
       label: template.label,
       description: template.description,
       module: this.module,
-      entity: this.entity,
+      resourceKind: this.resourceKind,
       documentType: template.documentType,
       tags: template.tags,
       note: template.note,

@@ -5,11 +5,11 @@ export interface TemplateMeta {
   id: string
   label: string
   description: string
-  module: string          // top-level Medusa module — e.g. 'sales'
-  entity: string          // entity within the module — e.g. 'quotes' | 'orders'
+  module: string          // top-level module — e.g. 'sales'
+  resourceKind: string    // framework resource kind — e.g. 'sales.quote' | 'sales.order'
   documentType: string    // document kind — e.g. 'offer' | 'invoice' | 'contract'
   tags: string[]
-  note?: string // free-text note — e.g. where the template is used or registered
+  note?: string           // free-text note — e.g. where the template is used or registered
 }
 
 /** Runtime handlers for a PDF template — normalization, lazy loading, and optional server-side data fetching. */
@@ -25,8 +25,7 @@ export type TemplateEntry = TemplateMeta & TemplateRegistryEntry
 
 /** Filter criteria for querying templates from the registry. */
 export interface TemplateFilter {
-  module?: string
-  entity?: string
+  resourceKind?: string
   documentType?: string
   tags?: string[]
 }

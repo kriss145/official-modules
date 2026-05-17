@@ -21,9 +21,9 @@ const columns: ColumnDef<TemplateMeta>[] = [
     header: 'Label',
   },
   {
-    accessorKey: 'entity',
-    header: 'Entity',
-    meta: { maxWidth: 120 },
+    accessorKey: 'resourceKind',
+    header: 'Resource',
+    meta: { maxWidth: 160 },
   },
   {
     accessorKey: 'documentType',

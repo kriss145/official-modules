@@ -44,7 +44,7 @@ export class OrdersDocumentService extends BaseDocumentService {
   readonly id = 'orders'
   readonly label = 'Orders'
   readonly module = 'sales'
-  readonly entity = 'orders'
+  readonly resourceKind = 'sales.order'
 
   constructor() {
     super()
