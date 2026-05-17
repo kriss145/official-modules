@@ -1,7 +1,5 @@
+import type { AppContainer } from '@open-mercato/shared/lib/di/container'
 import type { TemplateMeta, TemplateRegistryEntry, PdfTemplateDefinition } from './interfaces'
-
-export type { TemplateMeta, PdfTemplateDefinition }
-export type { TemplateId } from './types'
 
 export interface LoadedTemplate extends PdfTemplateDefinition {
   data: Record<string, unknown>
@@ -87,7 +85,7 @@ class TemplateRegistry {
    * @param record - Raw record from the widget context
    * @param container - Request-scoped Awilix DI container
    */
-  private async enrich(id: string, record: unknown, container: unknown): Promise<unknown> {
+  private async enrich(id: string, record: unknown, container: AppContainer): Promise<unknown> {
     const entry = this.findTemplate(id)
     if (!entry.fetchData) return record
     return entry.fetchData(record, container)
@@ -120,7 +118,7 @@ class TemplateRegistry {
    * @param record - Raw record from the widget context
    * @param container - Request-scoped Awilix DI container (optional)
    */
-  async load(id: string, record: unknown, container?: unknown): Promise<LoadedTemplate> {
+  async load(id: string, record: unknown, container?: AppContainer): Promise<LoadedTemplate> {
     const entry = this.findTemplate(id)
     const enriched = container ? await this.enrich(id, record, container) : record
     const component = await entry.load()

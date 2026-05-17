@@ -5,7 +5,7 @@ import { createRequestContainer } from '@open-mercato/shared/lib/di/container'
 import { NextResponse } from 'next/server'
 import '../../../config/registry' // registers built-in templates as side effect
 import { templateRegistry } from '../../../lib/template-registry'
-import type { TemplateId } from '../../../lib/template-registry'
+import type { TemplateId } from '../../../lib/types'
 
 export const metadata = {
   path: '/pdf-generators/generate',
