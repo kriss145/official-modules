@@ -11,8 +11,6 @@ import { TemplatesListLoader } from './TemplatesListLoader'
 interface TemplatesListProps {
   record: unknown
   filter?: TemplateFilter
-  /** Optional async function called before POST /generate — use to attach related data not present in the widget context (e.g. line items). */
-  enrichRecord?: (record: unknown) => Promise<unknown>
 }
 
 function applyFilter(templates: TemplateMeta[], filter?: TemplateFilter): TemplateMeta[] {
@@ -25,7 +23,7 @@ function applyFilter(templates: TemplateMeta[], filter?: TemplateFilter): Templa
   })
 }
 
-export function TemplatesList({ record, filter, enrichRecord }: TemplatesListProps) {
+export function TemplatesList({ record, filter }: TemplatesListProps) {
   const t = useT()
   const [templates, setTemplates] = React.useState<TemplateMeta[]>([])
   const [loading, setLoading] = React.useState(true)
@@ -57,7 +55,6 @@ export function TemplatesList({ record, filter, enrichRecord }: TemplatesListPro
           onClose={() => setSelected(null)}
           record={record}
           template={selected}
-          enrichRecord={enrichRecord}
         />
       )}
     </>

@@ -22,10 +22,9 @@ interface PreviewPanelProps {
   onClose: () => void
   record: unknown
   template: TemplateMeta
-  enrichRecord?: (record: unknown) => Promise<unknown>
 }
 
-export function PreviewPanel({ open, onClose, record, template, enrichRecord }: PreviewPanelProps) {
+export function PreviewPanel({ open, onClose, record, template }: PreviewPanelProps) {
   const t = useT()
   const [blobUrl, setBlobUrl] = React.useState<string | null>(null)
   const [loading, setLoading] = React.useState(true)
@@ -40,13 +39,10 @@ export function PreviewPanel({ open, onClose, record, template, enrichRecord }: 
     let cancelled = false
 
     const run = async () => {
-      const enrichedRecord = enrichRecord ? await enrichRecord(record) : record
-      if (cancelled) return
-
       const { result } = await apiCall('/api/pdf-generators/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ template_id: template.id, record: enrichedRecord }),
+        body: JSON.stringify({ template_id: template.id, record }),
       }, {
         parse: (res) => res.blob(),
       })
