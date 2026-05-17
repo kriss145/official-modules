@@ -1,7 +1,5 @@
 import { Document, Page, Text, View, StyleSheet } from '@react-pdf/renderer'
 import { OpenMercatoLogo } from '@open-mercato/pdf-generators'
-// Side-effect import — registers the Inter font family with @react-pdf/renderer.
-// Must be present in every external template; without it fontFamily: 'Inter' silently falls back.
 import '@open-mercato/pdf-generators/modules/pdf_generators/templates/shared/theme'
 import { colors } from '@open-mercato/pdf-generators/modules/pdf_generators/templates/shared/theme'
 import type { ExampleInvoiceData } from './types'
@@ -54,13 +52,6 @@ const s = StyleSheet.create({
   strip: { marginTop: 24, color: colors.muted, fontSize: 9 },
 })
 
-/**
- * Example invoice PDF template built with @react-pdf/renderer.
- *
- * The `data` prop is populated by ExampleInvoicesDocumentService.normalizeRecord()
- * and typed by ExampleInvoiceData. Do not read from context or fetch data here —
- * the template must be a pure function of its props.
- */
 export function ExampleInvoiceDocument({ data }: { data: ExampleInvoiceData }) {
   const cur = data.totals.currency
   const fmt = (n: number) => `${n.toFixed(2)} ${cur}`
@@ -78,6 +69,10 @@ export function ExampleInvoiceDocument({ data }: { data: ExampleInvoiceData }) {
           <View>
             <Text style={s.metaLabel}>Invoice number</Text>
             <Text style={s.metaValue}>{data.document.number}</Text>
+          </View>
+          <View>
+            <Text style={s.metaLabel}>Date</Text>
+            <Text style={s.metaValue}>{data.document.date}</Text>
           </View>
           {data.document.dueDate && (
             <View>

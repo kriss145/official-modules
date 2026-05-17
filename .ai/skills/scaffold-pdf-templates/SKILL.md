@@ -1,13 +1,13 @@
 ---
 name: scaffold-pdf-templates
-description: Scaffold the files needed to add custom PDF templates to an @open-mercato module using the pdf-generators package. Creates a DocumentService, a template component, a types file, the pdf-generators.ts convention file, and an injection widget that renders the TemplatesList. Triggers on "scaffold pdf templates", "add pdf template", "create pdf template", "add invoice template", "add quote template", "pdf widget", "generate pdf".
+description: Scaffold the files needed to add custom PDF templates to an @open-mercato module using the pdf-generators package. Creates a DocumentService, a template component, a types file, and the pdf-generators.ts convention file. The PDF tab is rendered automatically by the core sales module — no widget scaffolding needed. Triggers on "scaffold pdf templates", "add pdf template", "create pdf template", "add invoice template", "add quote template", "pdf widget", "generate pdf".
 ---
 
 # scaffold-pdf-templates
 
 Scaffolds everything needed for a community module (or sandbox module) to register and render its own PDF templates via `@open-mercato/pdf-generators`.
 
-> **Reference implementation**: `packages/pdf-generators/examples/` — a fully working invoice example. Read it before generating files to verify current API shape.
+> **Reference implementation**: `packages/pdf-generators/examples/` — a fully working invoice example. Read it before generating files to verify current API shape. The `widgets/` subfolder in examples is a **read-only reference** showing how the widget pattern works — do NOT copy or scaffold it; the PDF tab is rendered automatically by the core sales module when templates are registered.
 
 ---
 
@@ -28,14 +28,9 @@ pdf-templates/
       {{TEMPLATE_ID}}/
         index.tsx          ← React-PDF component (<Document><Page>…)
         types.ts           ← TypeScript data shape for the template
-
-widgets/injection/
-  {{SLOT_WIDGET_ID}}/
-    widget.ts              ← InjectionWidgetModule descriptor
-    widget.client.tsx      ← renders <TemplatesList> with record + filter + resource
-
-widgets/injection-table.ts ← declares which slot gets the widget
 ```
+
+> **No widget needed.** The PDF tab for sales orders and quotes is rendered automatically by the core sales module. Registering a `DocumentService` with the correct `resourceKind` is sufficient for templates to appear in the tab.
 
 ---
 
@@ -50,14 +45,11 @@ widgets/injection-table.ts ← declares which slot gets the widget
 | `CATEGORY` | singular noun, kebab-case | `invoice` \| `quote` \| `shipment` |
 | `TEMPLATE_ID` | kebab-case | `example-invoice` |
 | `TEMPLATE_LABEL` | Title Case | `Example Invoice` |
-| `SLOT_ID` | injection slot key | `sales.document.detail.order:tabs` |
-| `WIDGET_ID` | dot notation | `example.injection.order_pdf_tab` |
-| `RECORD_TYPE_NAME` | PascalCase | `OrderWidgetRecord` |
+| `RECORD_TYPE_NAME` | PascalCase | `OrderRecord` |
 
 Ask the user for anything that is ambiguous before writing files.
 
-> **`RESOURCE_KIND`** must match what `ctx.resourceKind` returns in the widget context for that detail page.
-> Ask the user to confirm the value or check the injection slot name: `sales.document.detail.order:tabs` → `sales.order`.
+> **`RESOURCE_KIND`** determines which PDF tab the templates appear in. Common values: `sales.order` (order detail), `sales.quote` (quote detail).
 
 ---
 
@@ -265,96 +257,7 @@ export default templates
 
 ---
 
-## Step 5 — Injection widget
-
-### `widgets/injection/{{SLOT_WIDGET_ID}}/widget.ts`
-
-```ts
-import type { InjectionWidgetModule } from '@open-mercato/shared/modules/widgets/injection'
-import {{PascalWidgetName}}Widget from './widget.client'
-
-const widget: InjectionWidgetModule = {
-  metadata: {
-    id: '{{WIDGET_ID}}',
-    title: 'PDF',
-    features: ['pdf_generators.view'],
-    priority: 10,
-  },
-  Widget: {{PascalWidgetName}}Widget,
-}
-
-export default widget
-```
-
-### `widgets/injection/{{SLOT_WIDGET_ID}}/widget.client.tsx`
-
-```tsx
-'use client'
-
-import type { InjectionWidgetComponentProps } from '@open-mercato/shared/modules/widgets/injection'
-import { TemplatesList } from '@open-mercato/pdf-generators'
-
-interface WidgetContext {
-  kind: string
-  resourceId: string
-  resourceKind: string
-  record: { id: string }
-}
-
-export default function {{PascalWidgetName}}Widget({ context }: InjectionWidgetComponentProps) {
-  const ctx = context as WidgetContext
-  const record = ctx?.record
-
-  if (!record) return null
-
-  return (
-    <div className="border rounded-lg p-4">
-      <TemplatesList
-        record={{ id: record.id }}
-        filter={{ resourceKind: ctx.resourceKind }}
-        resource={{ kind: ctx.resourceKind, id: ctx.resourceId }}
-      />
-    </div>
-  )
-}
-```
-
-**Why**:
-- `features: ['pdf_generators.view']` gates the tab — users without this feature won't see it.
-- `filter={{ resourceKind: ctx.resourceKind }}` scopes the list to templates registered for this resource kind. It's passed directly from the widget context — no hardcoding of entity names needed.
-- `record={{ id: record.id }}` passes only the ID to the server — full data is fetched server-side via `fetchData()` in the document service.
-- `resource={{ kind, id }}` passes context to `PreviewPanel` so `POST /generate` receives `resource_kind` and `resource_id`, enabling logging, event emission, and future PDF history (Phase 5).
-- The widget is split into `widget.ts` (server-safe descriptor) and `widget.client.tsx` (`'use client'` boundary) — standard UMES pattern.
-
----
-
-## Step 6 — Register in injection-table
-
-**`widgets/injection-table.ts`** — add entry for the slot:
-
-```ts
-'{{SLOT_ID}}': [
-  {
-    widgetId: '{{WIDGET_ID}}',
-    kind: 'tab',
-    priority: 10,
-  },
-],
-```
-
-Common slot IDs for PDF tabs:
-
-| Context | Slot ID | resourceKind |
-|---------|---------|-------------|
-| Sales order detail | `sales.document.detail.order:tabs` | `sales.order` |
-| Sales quote detail | `sales.document.detail.quote:tabs` | `sales.quote` |
-| Shipment detail | `sales.document.detail.shipment:tabs` | `sales.shipment` |
-
-**Why**: The injection-table is how the widget gets mounted into the host page. Without this entry the widget component exists but is never rendered anywhere.
-
----
-
-## Step 7 — Verify
+## Step 5 — Verify
 
 ```bash
 # Rebuild to pick up new files
@@ -367,7 +270,7 @@ yarn generate
 yarn dev
 ```
 
-Then navigate to a record that renders the slot (e.g. a sales order detail page) and confirm:
+Then navigate to a record detail page (sales order, sales quote) and confirm:
 1. The **PDF tab** appears in the tab bar.
 2. The tab shows the template name from `registerTemplate({ label })`.
 3. Clicking a template card opens the **preview dialog** with the rendered PDF.
@@ -383,9 +286,6 @@ Then navigate to a record that renders the slot (e.g. a sales order detail page)
 | `pdf-templates/services/…-document-service.ts` | Service: template registration, data fetching, normalization |
 | `pdf-templates/templates/{{CATEGORY}}/{{TEMPLATE_ID}}/types.ts` | TypeScript data shape for the template |
 | `pdf-templates/templates/{{CATEGORY}}/{{TEMPLATE_ID}}/index.tsx` | React-PDF template component |
-| `widgets/injection/{{SLOT_WIDGET_ID}}/widget.ts` | Widget descriptor |
-| `widgets/injection/{{SLOT_WIDGET_ID}}/widget.client.tsx` | Widget UI (`TemplatesList`) |
-| `widgets/injection-table.ts` | Slot registration |
 
 ---
 
@@ -394,9 +294,8 @@ Then navigate to a record that renders the slot (e.g. a sales order detail page)
 - The `theme` import (`@open-mercato/pdf-generators/…/shared/theme`) **must be a bare side-effect import** — it registers fonts. Do it once, at the top of the template `index.tsx`.
 - `load` in `registerTemplate` must be a **function returning a dynamic import** — never a static import, or the whole template bundle loads eagerly.
 - `id` in `BaseDocumentService` must be unique globally. Convention: `{{MODULE_ID}}-{{CATEGORY}}s`.
-- `resourceKind` must match exactly what `ctx.resourceKind` returns in the widget context for that detail page. Confirm with the user or derive from the injection slot name.
+- `resourceKind` must match the resource kind used by the core sales module tab: `sales.order` for orders, `sales.quote` for quotes.
 - `pdf-generators.ts` must export `templates` as a named export and a default export.
-- Widget `features` must include `pdf_generators.view` — the tab must be gated on the pdf-generators module permission.
 - Pass only `{ id: record.id }` to `TemplatesList record` prop — full data fetching belongs in `fetchData()` server-side.
-- Never import `@react-pdf/renderer` in `widget.client.tsx` — rendering happens inside the template component loaded lazily by `TemplatesList`.
 - `POST /preview` (iframe) and `POST /generate` (download) are separate endpoints. Preview has zero side effects; generate triggers logging and events. Never conflate them.
+- **Do NOT scaffold a widget or injection-table entry** — the PDF tab is rendered by the core module. The `packages/pdf-generators/examples/widgets/` folder is a reference-only example of what such a widget looks like; it should never be copied into a community module.

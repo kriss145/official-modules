@@ -7,16 +7,17 @@ interface OrderWidgetContext {
   kind: string
   resourceId: string
   resourceKind: string
-  record: Record<string, unknown>
+  record: { id: string }
 }
 
 /**
  * Renders the PDF template list inside the order detail tab.
  *
- * filter.category   — shows only templates registered under this category
- * filter.moduleId   — shows only templates registered by this module
+ * filter.resourceKind — scopes the list to templates registered for this resource kind.
+ *   Passed directly from ctx.resourceKind so the widget works without hardcoding entity names.
  *
- * Both filters together prevent templates from other modules leaking into this tab.
+ * resource — passed to PreviewPanel so /generate receives resource_kind + resource_id,
+ *   enabling logging, event emission, and future PDF history (Phase 5).
  */
 export default function OrderPdfTabWidget({ context }: InjectionWidgetComponentProps) {
   const ctx = context as OrderWidgetContext
@@ -27,8 +28,9 @@ export default function OrderPdfTabWidget({ context }: InjectionWidgetComponentP
   return (
     <div className="border rounded-lg p-4">
       <TemplatesList
-        record={record}
-        filter={{ category: 'invoice', moduleId: 'example' }}
+        record={{ id: record.id }}
+        filter={{ resourceKind: ctx.resourceKind }}
+        resource={{ kind: ctx.resourceKind, id: ctx.resourceId }}
       />
     </div>
   )
