@@ -6,27 +6,21 @@ import { renderPdf } from '../../../lib/render-pdf'
 import type { TemplateId } from '../../../lib/types'
 
 export const metadata = {
-  path: '/pdf-generators/generate',
+  path: '/pdf-generators/preview',
   POST: { requireAuth: true, requireFeatures: ['pdf_generators.view'] },
 }
 
 /**
- * Generates a PDF document with full side effects — logging, events, future persistence.
- * For preview-only rendering without side effects use /preview.
+ * Renders a PDF for preview purposes — no logging, no events, no persistence.
+ * Use /generate for production generation with full side effects.
  *
- * @param request - `{ template_id, data, resource_kind?, resource_id?, resource_label? }`
+ * @param request - `{ template_id: TemplateId, data: unknown }`
  * @returns PDF binary stream
  */
 export async function POST(request: Request) {
   const container = await createRequestContainer()
 
-  let body: {
-    template_id: TemplateId
-    data: unknown
-    resource_kind?: string
-    resource_id?: string
-    resource_label?: string
-  }
+  let body: { template_id: TemplateId; data: unknown }
 
   try {
     body = await request.json()
@@ -40,16 +34,13 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Missing template_id or data' }, { status: 400 })
   }
 
-  // TODO Phase 5: persist PdfGeneratedDocument + emit pdf_generators.document.generated event
-  // const { resource_kind, resource_id, resource_label } = body
-
-  return renderPdf({ template_id, data }, { container }, 'generate')
+  return renderPdf({ template_id, data }, { container }, 'preview')
 }
 
 export const openApi: OpenApiRouteDoc = {
   methods: {
     POST: {
-      summary: 'Generate PDF document with full side effects',
+      summary: 'Render PDF for preview — no side effects',
       responses: [
         { status: 200, description: 'PDF file stream' },
         { status: 400, description: 'Missing or invalid template_id / data' },

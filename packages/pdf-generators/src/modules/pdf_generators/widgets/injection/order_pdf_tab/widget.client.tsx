@@ -21,6 +21,7 @@ export default function OrderPdfTabWidget({ context }: InjectionWidgetComponentP
       <TemplatesList
         record={{ id: record.id }}
         filter={{ entity: 'orders' }}
+        resource={{ kind: ctx.resourceKind, id: ctx.resourceId }}
       />
     </div>
   )

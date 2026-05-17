@@ -17,17 +17,25 @@ import { Preview } from './Preview'
 import { Loader } from './Loader'
 import { downloadBlob } from '../utils/downloadBlob'
 
+export interface PdfResource {
+  kind: string
+  id: string
+  label?: string
+}
+
 interface PreviewPanelProps {
   open: boolean
   onClose: () => void
   record: unknown
   template: TemplateMeta
+  resource?: PdfResource
 }
 
-export function PreviewPanel({ open, onClose, record, template }: PreviewPanelProps) {
+export function PreviewPanel({ open, onClose, record, template, resource }: PreviewPanelProps) {
   const t = useT()
   const [blobUrl, setBlobUrl] = React.useState<string | null>(null)
   const [loading, setLoading] = React.useState(true)
+  const [downloading, setDownloading] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
 
   React.useEffect(() => {
@@ -41,7 +49,7 @@ export function PreviewPanel({ open, onClose, record, template }: PreviewPanelPr
     let cancelled = false
 
     const run = async () => {
-      const { result, error: apiError } = await apiCall('/api/pdf-generators/generate', {
+      const { result, error: apiError } = await apiCall('/api/pdf-generators/preview', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ template_id: template.id, data: record }),
@@ -68,6 +76,28 @@ export function PreviewPanel({ open, onClose, record, template }: PreviewPanelPr
     }
   }, [open, template.id])
 
+  const handleDownload = async () => {
+    setDownloading(true)
+    const { result, error: apiError } = await apiCall('/api/pdf-generators/generate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        template_id: template.id,
+        data: record,
+        resource_kind: resource?.kind,
+        resource_id: resource?.id,
+        resource_label: resource?.label,
+      }),
+    }, {
+      parse: (res) => res.blob(),
+    })
+    setDownloading(false)
+    if (apiError || !result) return
+    const url = URL.createObjectURL(result)
+    downloadBlob(url, template.id)
+    URL.revokeObjectURL(url)
+  }
+
   return (
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
       <DialogContent className="flex h-screen w-screen max-w-none sm:h-screen sm:max-w-none sm:rounded-none flex-col gap-0 p-0 translate-x-0 translate-y-0 sm:translate-x-0 sm:translate-y-0 sm:inset-0 sm:top-0 sm:left-0">
@@ -91,9 +121,11 @@ export function PreviewPanel({ open, onClose, record, template }: PreviewPanelPr
             {blobUrl && <Preview url={blobUrl} />}
           </div>
           <div className="border-t bg-background px-6 py-4">
-            <Button onClick={() => blobUrl && downloadBlob(blobUrl, template.id)} disabled={!blobUrl} className="w-full">
+            <Button onClick={handleDownload} disabled={loading || downloading} className="w-full">
               <Download className="mr-2 h-4 w-4" />
-              {t('pdf_generators.generate.button', 'Pobierz PDF')}
+              {downloading
+                ? t('pdf_generators.generate.generating', 'Generowanie...')
+                : t('pdf_generators.generate.button', 'Pobierz PDF')}
             </Button>
           </div>
         </div>
