@@ -57,17 +57,17 @@
     }
   },
   "dependencies": {
-    "@open-mercato/ui": "0.4.9-canary-1f829e1484",
+    "@open-mercato/ui": "0.4.9-develop.1013.aa3a9dea92",
     "@react-pdf/renderer": "4.3.0"
   },
   "peerDependencies": {
-    "@open-mercato/shared": "0.4.9-canary-1f829e1484",
-    "@open-mercato/ui": "0.4.9-canary-1f829e1484",
+    "@open-mercato/shared": "0.4.9-develop.1013.aa3a9dea92",
+    "@open-mercato/ui": "0.4.9-develop.1013.aa3a9dea92",
     "react": "^19.0.0"
   },
   "devDependencies": {
-    "@open-mercato/shared": "0.4.9-canary-1f829e1484",
-    "@open-mercato/ui": "0.4.9-canary-1f829e1484",
+    "@open-mercato/shared": "0.4.9-develop.1013.aa3a9dea92",
+    "@open-mercato/ui": "0.4.9-develop.1013.aa3a9dea92",
     "@types/jest": "^30.0.0",
     "esbuild": "^0.25.0",
     "glob": "^13.0.6",

@@ -1,6 +1,7 @@
 import React from 'react'
 import { renderToBuffer, type DocumentProps } from '@react-pdf/renderer'
 import type { OpenApiRouteDoc } from '@open-mercato/shared/lib/openapi'
+import { createRequestContainer } from '@open-mercato/shared/lib/di/container'
 import { NextResponse } from 'next/server'
 import '../../../config/registry' // registers built-in templates as side effect
 import { templateRegistry } from '../../../lib/template-registry'
@@ -30,6 +31,15 @@ export async function POST(request: Request) {
 
   if (!template_id || !record) {
     return NextResponse.json({ error: 'Missing template_id or record' }, { status: 400 })
+  }
+
+  try {
+    const container = await createRequestContainer()
+    console.log('[pdf-generators] Request container created successfully')
+    const em = container.resolve('em')
+    console.log('[pdf-generators] container OK, em:', typeof em)
+  } catch (err) {
+    console.error('[pdf-generators] createRequestContainer failed:', err)
   }
 
   let template
