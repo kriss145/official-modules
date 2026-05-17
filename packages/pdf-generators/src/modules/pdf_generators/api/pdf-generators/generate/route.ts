@@ -38,7 +38,8 @@ export async function POST(request: Request) {
   let template
   try {
     template = await templateRegistry.load({ id: template_id, data }, { container: container })
-  } catch {
+  } catch (err) {
+    console.error('[generate] load failed:', err)
     return NextResponse.json({ error: `Unknown template: ${template_id}` }, { status: 400 })
   }
 

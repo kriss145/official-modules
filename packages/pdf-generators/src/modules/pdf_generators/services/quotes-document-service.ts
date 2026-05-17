@@ -73,14 +73,15 @@ export class QuotesDocumentService extends BaseDocumentService {
     if (!id) return data
 
     try {
-      // TODO: switch to em.findOne(SalesQuote, ...) once SalesQuote is registered in the sales module DI
+      // SalesQuote is not in DI — use raw SQL, but skip encrypted columns (customerSnapshot, billingAddressSnapshot)
+      // and resolve customer data separately via CustomerEntity which is in DI
       const em = container.resolve('em') as any
       const conn = em.getConnection() as { execute: (sql: string, params?: unknown[]) => Promise<any[]> }
 
       const [quote] = await conn.execute(
         `SELECT id, quote_number, currency_code, valid_from, valid_until, comments,
                 grand_total_net_amount, grand_total_gross_amount, tax_total_amount,
-                customer_snapshot, billing_address_snapshot
+                customer_entity_id, billing_address_snapshot
          FROM sales_quotes WHERE id = ? LIMIT 1`,
         [id]
       )
@@ -106,6 +107,46 @@ export class QuotesDocumentService extends BaseDocumentService {
         currencyCode: row.currency_code,
       }))
 
+      // resolve customer via DI entity (avoids encrypted customerSnapshot from raw SQL)
+      let customerSnapshot: Record<string, unknown> | null = null
+      let billingAddressSnapshot: Record<string, unknown> | null = null
+
+      if (quote.customer_entity_id) {
+        const CustomerEntity = container.resolve('CustomerEntity')
+        const CustomerAddress = container.resolve('CustomerAddress')
+
+        const customer = await em.findOne(CustomerEntity, { id: quote.customer_entity_id }, { populate: ['personProfile', 'companyProfile'] }) as any
+        if (customer) {
+          customerSnapshot = {
+            customer: {
+              id: customer.id,
+              kind: customer.kind,
+              displayName: customer.displayName,
+              primaryEmail: customer.primaryEmail ?? null,
+              personProfile: customer.personProfile
+                ? { firstName: customer.personProfile.firstName ?? null, lastName: customer.personProfile.lastName ?? null }
+                : null,
+              companyProfile: customer.companyProfile
+                ? { legalName: customer.companyProfile.legalName ?? null, brandName: customer.companyProfile.brandName ?? null }
+                : null,
+            },
+            contact: null,
+          }
+
+          const address = await em.findOne(CustomerAddress, { entity: customer.id, isPrimary: true }) as any
+          if (address) {
+            billingAddressSnapshot = {
+              addressLine1: address.addressLine1,
+              addressLine2: address.addressLine2 ?? null,
+              city: address.city ?? null,
+              region: address.region ?? null,
+              postalCode: address.postalCode ?? null,
+              country: address.country ?? null,
+            }
+          }
+        }
+      }
+
       return {
         id: quote.id,
         quoteNumber: quote.quote_number,
@@ -116,8 +157,8 @@ export class QuotesDocumentService extends BaseDocumentService {
         grandTotalNetAmount: quote.grand_total_net_amount,
         grandTotalGrossAmount: quote.grand_total_gross_amount,
         taxTotalAmount: quote.tax_total_amount,
-        customerSnapshot: quote.customer_snapshot ?? null,
-        billingAddressSnapshot: quote.billing_address_snapshot ?? null,
+        customerSnapshot,
+        billingAddressSnapshot,
         lines,
       } satisfies QuoteRecord
     } catch (err) {
