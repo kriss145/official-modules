@@ -3,13 +3,13 @@ import type { TemplateEntry } from '../lib/interfaces'
 
 /**
  * Registration shape for a single template within a document service.
- * Does not include moduleId or fromRecord — those are supplied by the service itself.
+ * Does not include module, entity, or fromRecord — those are supplied by the service itself.
  */
 export interface DocumentTemplateEntry {
   id: string
   label: string
   description: string
-  category: string
+  documentType: string
   tags: string[]
   load: () => Promise<React.ComponentType<{ data: Record<string, unknown> }>>
 }
@@ -24,7 +24,8 @@ export interface DocumentTemplateEntry {
 export abstract class BaseDocumentService {
   abstract readonly id: string
   abstract readonly label: string
-  abstract readonly moduleId: string
+  abstract readonly module: string
+  abstract readonly entity: string
 
   protected templates_: Map<string, DocumentTemplateEntry> = new Map()
 
@@ -79,9 +80,10 @@ export abstract class BaseDocumentService {
       id: template.id,
       label: template.label,
       description: template.description,
-      category: template.category,
+      module: this.module,
+      entity: this.entity,
+      documentType: template.documentType,
       tags: template.tags,
-      moduleId: this.moduleId,
       fromRecord: (data: unknown) => this.toTemplateData({ data }),
       filename: (data: Record<string, unknown>) => this.filename({ data }),
       fetchData: (input: { data: unknown }, ctx: { container: AppContainer }) => this.fetchData(input, ctx),

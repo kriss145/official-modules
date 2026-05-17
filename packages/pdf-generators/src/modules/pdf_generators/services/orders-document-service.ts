@@ -43,7 +43,8 @@ export interface OrderLineItem {
 export class OrdersDocumentService extends BaseDocumentService {
   readonly id = 'orders'
   readonly label = 'Orders'
-  readonly moduleId = 'sales'
+  readonly module = 'sales'
+  readonly entity = 'orders'
 
   constructor() {
     super()
@@ -52,7 +53,7 @@ export class OrdersDocumentService extends BaseDocumentService {
       id: 'order-invoice',
       label: 'Order Invoice',
       description: 'Standard invoice for a sales order.',
-      category: 'invoice',
+      documentType: 'invoice',
       tags: ['invoice', 'order', 'sales'],
       load: () =>
         import('../templates/sales/orders/templates/order-invoice').then(

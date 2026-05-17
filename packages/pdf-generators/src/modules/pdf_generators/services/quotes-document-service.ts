@@ -43,7 +43,8 @@ export interface QuoteLineItem {
 export class QuotesDocumentService extends BaseDocumentService {
   readonly id = 'quotes'
   readonly label = 'Quotes'
-  readonly moduleId = 'quotes'
+  readonly module = 'sales'
+  readonly entity = 'quotes'
 
   constructor() {
     super()
@@ -52,7 +53,7 @@ export class QuotesDocumentService extends BaseDocumentService {
       id: 'sales-offer',
       label: 'Sales Offer',
       description: 'Professional sales offer.',
-      category: 'quote',
+      documentType: 'offer',
       tags: ['offer', 'sales'],
       load: () =>
         import('../templates/sales/quotes/templates/sales-offer').then(

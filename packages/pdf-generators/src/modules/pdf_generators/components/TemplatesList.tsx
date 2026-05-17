@@ -16,8 +16,9 @@ interface TemplatesListProps {
 function applyFilter(templates: TemplateMeta[], filter?: TemplateFilter): TemplateMeta[] {
   if (!filter) return templates
   return templates.filter((t) => {
-    if (filter.category && t.category !== filter.category) return false
-    if (filter.moduleId && t.moduleId !== filter.moduleId) return false
+    if (filter.module && t.module !== filter.module) return false
+    if (filter.entity && t.entity !== filter.entity) return false
+    if (filter.documentType && t.documentType !== filter.documentType) return false
     if (filter.tags && filter.tags.length > 0 && !filter.tags.some((tag) => t.tags.includes(tag))) return false
     return true
   })

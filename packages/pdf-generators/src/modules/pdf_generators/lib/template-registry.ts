@@ -45,8 +45,8 @@ class TemplateRegistry implements TemplateRegistryInterface {
    * @returns Object with `internal` and `external` arrays of TemplateMeta
    */
   listTemplates(): { internal: TemplateMeta[]; external: TemplateMeta[] } {
-    const toMeta = ({ id, label, description, category, tags, moduleId }: TemplateEntry): TemplateMeta =>
-      ({ id, label, description, category, tags, moduleId })
+    const toMeta = ({ id, label, description, module, entity, documentType, tags }: TemplateEntry): TemplateMeta =>
+      ({ id, label, description, module, entity, documentType, tags })
     return {
       internal: this.getInternal().map(toMeta),
       external: this.getExternal().map(toMeta),

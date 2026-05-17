@@ -20,7 +20,7 @@ export default function OrderPdfTabWidget({ context }: InjectionWidgetComponentP
     <div className="border rounded-lg p-4">
       <TemplatesList
         record={{ id: record.id }}
-        filter={{ category: 'invoice', moduleId: 'sales' }}
+        filter={{ entity: 'orders' }}
       />
     </div>
   )

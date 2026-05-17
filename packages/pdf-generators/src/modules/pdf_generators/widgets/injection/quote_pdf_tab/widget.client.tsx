@@ -20,7 +20,7 @@ export default function QuotePdfTabWidget({ context }: InjectionWidgetComponentP
     <div className="border rounded-lg p-4">
       <TemplatesList
         record={{ id: record.id }}
-        filter={{ category: 'quote', moduleId: 'quotes' }}
+        filter={{ entity: 'quotes' }}
       />
     </div>
   )

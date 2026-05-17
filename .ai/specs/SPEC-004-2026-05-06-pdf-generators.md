@@ -7,18 +7,20 @@
 - Quote/Sales and Orders are the first supported modules; any other entity can be added independently.
 
 **Scope:**
-- Universal template registry — globalThis-based, split into **internal** (built-in) and **external** (injected by other modules via code-gen) registries
-- Widget passes raw `context.record` to the API — normalization (`normalizeRecord`) happens server-side inside `loadTemplate()`
+- Universal template registry — class-based singleton, split into **internal** (built-in) and **external** (injected by other modules via code-gen) registries
+- Template metadata hierarchy: `module` (top-level Medusa module, e.g. `'sales'`) → `entity` (e.g. `'quotes'` | `'orders'`) → `documentType` (e.g. `'offer'` | `'invoice'`)
+- Widget passes raw `context.record` to the API — optional `fetchData` hook enriches data server-side (e.g. fetches line items via DI container); `toTemplateData` normalizes afterward
 - `GET /api/pdf-generators/templates` — lists available templates (internal + external) for client-side consumption
-- `POST /api/pdf-generators/generate` — accepts `{ template_id, record }`, normalizes server-side, renders via `renderToBuffer`, returns PDF blob
+- `POST /api/pdf-generators/generate` — accepts `{ template_id, data }`, runs `fetchData` → `toTemplateData` server-side, renders via `renderToBuffer`, returns PDF blob
 - Live PDF preview via `<Preview>` (iframe with blob URL) — no `PDFViewer` client-side rendering
-- Widget pattern: tab injection (`quote_pdf_tab`) rather than action button
-- Template folder convention: `templates/<module>/<entity>/templates/<template-name>/` + `templates/<module>/<entity>/data/`
+- Widget pattern: tab injection (`quote_pdf_tab`) rather than action button; widget filters by `{ entity: 'quotes' }` — single field, no redundancy
+- Template folder convention: `templates/<module>/<entity>/templates/<template-name>/`
 - Generator plugin (`generators.ts`) enabling other modules to register external templates via `mercato generate registry`
 
 **Concerns:**
 - `@react-pdf/renderer` operates server-side only (`renderToBuffer`) — fonts must be accessible on the server; solved via base64-encoded `*.generated.ts` font files
 - Large documents may render slowly on the server — async queue may be needed in a later phase
+- `QuotesDocumentService.fetchData` uses raw SQL for quote data (SalesQuote entity is not in DI); customer data is resolved separately via `CustomerEntity`
 
 ---
 
@@ -61,9 +63,9 @@ An external community module (`packages/pdf-generators/`) extending OpenMercato 
 | Decision | Rationale |
 |----------|-----------|
 | Templates as code (JSX), not database config | Git-versioned, full typographic control, no visual editor required |
-| Data from `context.record`, not a fetch | Widget already receives full record from the framework — no redundant API call |
-| Normalization server-side in `loadTemplate()` | Client sends raw `record`; server normalizes before render — validation and mapping at the API boundary, not scattered across the frontend |
-| `normalizeRecord` encapsulated in `BaseDocumentService` subclass | Each entity's mapping lives in one class — adding a new entity = new service subclass, no changes to existing code |
+| Data from `context.record`, not a fetch | Widget already receives full record from the framework — only `id` is strictly needed when `fetchData` is defined |
+| `fetchData` hook per template (server-side) | Services that need data not available in the widget context (e.g. line items) override `fetchData` to query the DI container before normalization |
+| Normalization via `toTemplateData` in `BaseDocumentService` subclass | Each entity's mapping lives in one class — adding a new entity = new service subclass, no changes to existing code |
 | `PdfDocumentData` lives in `templates/<module>/<entity>/templates/<name>/types.ts` | Type is a contract between the normalizer and the template component, not a global concern |
 | `Record<string, unknown>` in route and components | Route and UI components are template-agnostic; type safety lives at the normalizer→template boundary |
 | Template folder convention `templates/<module>/<entity>/templates/<name>/` | Mirrors the domain hierarchy — adding a new module = new top-level folder, no changes elsewhere |
@@ -73,7 +75,9 @@ An external community module (`packages/pdf-generators/`) extending OpenMercato 
 | `GET /api/pdf-generators/templates` endpoint | Client needs the list at runtime to filter and display available templates without bundling the registry |
 | `generators.ts` plugin for code-gen | External modules declare templates in `pdf-generators.ts`; `mercato generate registry` produces the bootstrap glue |
 | `moduleId` = target module, not source package | A template declares which module's data it consumes (`'quotes'`, `'sales'`) — not which package ships it. Widgets filter by `moduleId` to get only templates compatible with their data shape. |
-| `fromRecord` in registry entry (server-side) | Template owns its normalization logic — widget is fully decoupled from data shape. Adding a new template for `quotes` requires zero changes to the widget. |
+| `fromRecord` in registry entry calls `toTemplateData` (server-side) | Template owns its normalization logic — widget is fully decoupled from data shape. Adding a new template for `quotes` requires zero changes to the widget. |
+| No `enrichRecord` prop in widgets | Widget passes raw `record` only; all enrichment (data fetching + normalization) happens server-side via `fetchData` + `toTemplateData` |
+| `filename` method on `BaseDocumentService` | Derives the PDF download filename from normalized data — default is `document.pdf`; services override for document-specific names |
 | Tab widget per entity, not action button | PDF is a contextual view of the record, not a one-shot action |
 | Preview via iframe + blob URL, not PDFViewer | Server renders the PDF once (`renderToBuffer`), iframe displays the result — no client-side re-render on every change |
 | Fonts as base64 `*.generated.ts` per font | Works on the server (no filesystem path issues); tree-shakeable per font |
@@ -200,14 +204,13 @@ packages/pdf-generators/
 Two separate registries managed by `TemplateRegistry` class (singleton `templateRegistry`):
 
 ```ts
-// lib/template-registry.ts
-registerInternal(entries: TemplateRegistryEntry[]): void  // called ONCE by config/registry.ts — replaces array
-registerExternal(entries: TemplateRegistryEntry[]): void  // called by bootstrap (generated code) — replaces array
-getInternal(): TemplateRegistryEntry[]
-getExternal(): TemplateRegistryEntry[]
-getAll(): TemplateRegistryEntry[]
-getMetas(): { internal: TemplateMeta[], external: TemplateMeta[] }
-load(id, record): Promise<LoadedTemplate>  // normalizes + loads template component
+// lib/interfaces.ts — TemplateRegistry interface
+interface TemplateRegistry {
+  registerInternal(entries: TemplateEntry[]): void   // called ONCE by config/registry.ts — replaces array
+  registerExternal(entries: TemplateEntry[]): void   // called by bootstrap (generated code) — replaces array
+  listTemplates(): { internal: TemplateMeta[]; external: TemplateMeta[] }
+  load({ id, data }, { container }): Promise<LoadedTemplate>  // fetchData → toTemplateData → lazy-load component
+}
 ```
 
 > **Critical**: `registerInternal` replaces the entire internal array. All built-in services must be combined into one call in `config/registry.ts`:
@@ -224,20 +227,33 @@ interface TemplateMeta {
   id: string
   label: string
   description: string
-  category: string      // e.g. 'quote', 'order', 'invoice'
-  tags: string[]        // e.g. ['offer', 'sales', 'b2b']
-  moduleId: string      // target module whose data this template consumes — e.g. 'quotes', 'orders'
+  module: string       // top-level Medusa module — e.g. 'sales'
+  entity: string       // entity within the module — e.g. 'quotes' | 'orders'
+  documentType: string // document kind — e.g. 'offer' | 'invoice' | 'contract'
+  tags: string[]
 }
 
-interface TemplateRegistryEntry extends TemplateMeta {
-  fromRecord: (record: unknown) => Record<string, unknown>  // maps raw context.record to template data shape
+interface TemplateRegistryEntry {
+  fromRecord: (data: unknown) => Record<string, unknown>  // maps enriched server data to the flat shape expected by the template
+  filename: (input: { data: Record<string, unknown> }) => string  // derives the PDF filename from normalized data
   load: () => Promise<React.ComponentType<{ data: Record<string, unknown> }>>
+  fetchData?: (input: { data: unknown }, ctx: { container: AppContainer }) => Promise<unknown>  // optional; called before normalization to fetch related data
+}
+
+// TemplateEntry = TemplateMeta & TemplateRegistryEntry (full descriptor used in the registry)
+type TemplateEntry = TemplateMeta & TemplateRegistryEntry
+
+interface LoadedTemplate {
+  component: React.ComponentType<{ data: Record<string, unknown> }>
+  data: Record<string, unknown>
+  filename: string
 }
 
 interface TemplateFilter {
-  category?: string
+  module?: string
+  entity?: string
+  documentType?: string
   tags?: string[]       // OR logic — matches if template has ANY of the given tags
-  moduleId?: string
 }
 ```
 
@@ -261,7 +277,7 @@ interface PdfDocumentData {
 
 ### Document Services
 
-Each entity has a `DocumentService` class extending `BaseDocumentService`. The service owns template registration and record normalization for that entity:
+Each entity has a `DocumentService` class extending `BaseDocumentService`. The service owns template registration, optional server-side data fetching, and normalization for that entity:
 
 ```ts
 // services/quotes-document-service.ts
@@ -275,16 +291,24 @@ export class QuotesDocumentService extends BaseDocumentService {
     this.registerTemplate({ id: 'sales-offer', category: 'quote', load: () => import('...'), ... })
   }
 
-  normalizeRecord(record: unknown): Record<string, unknown> { ... }
+  // Override to fetch full quote (with line items) from DB via DI container
+  override async fetchData({ data }: { data: unknown }, { container }: { container: AppContainer }): Promise<unknown> {
+    // uses raw SQL — SalesQuote is not in DI; customer resolved via CustomerEntity
+    ...
+  }
+
+  toTemplateData({ data }: { data: unknown }): Record<string, unknown> { ... }
 }
 ```
 
 `BaseDocumentService` provides:
 - `registerTemplate(entry)` — registers a lazy-loaded template
-- `getEntries()` — returns `TemplateRegistryEntry[]` with `moduleId` and `fromRecord` bound to the instance
-- `formatDate(iso)` — formats ISO string to locale date
+- `getEntries()` — returns `TemplateEntry[]` with `moduleId`, `fromRecord`, `filename`, and `fetchData` bound to this service
+- `fetchData({ data }, { container })` — default no-op; override to enrich data before normalization
+- `toTemplateData({ data })` — **abstract**; override to map enriched data to the flat shape expected by templates
+- `filename({ data })` — returns `'document.pdf'` by default; override for document-specific names
 
-`OrderWidgetRecord` and `QuoteWidgetRecord` are exported publicly from `@open-mercato/pdf-generators` for use by external template authors.
+`QuoteRecord` and `QuoteLineItem` are the typed shapes returned by `QuotesDocumentService.fetchData`. `OrderWidgetRecord` and `QuoteWidgetRecord` are exported publicly from `@open-mercato/pdf-generators` for use by external template authors.
 
 ---
 
@@ -309,20 +333,20 @@ Returns all available templates split by source.
 
 ### POST /api/pdf-generators/generate
 
-Generates a PDF. Server normalizes the raw record via `entry.fromRecord(record)` before rendering.
+Generates a PDF. Server runs `fetchData` (if defined) then `toTemplateData` before rendering.
 
 **Request:**
 ```json
 {
   "template_id": "sales-offer",
-  "record": { /* raw context.record — module-specific shape */ }
+  "data": { /* raw context.record — at minimum { id } when fetchData is defined */ }
 }
 ```
 
-**Response:** `Content-Type: application/pdf` — binary PDF stream
+**Response:** `Content-Type: application/pdf` — binary PDF stream with `Content-Disposition: attachment; filename="<derived>"`.
 
 **Errors:**
-- `400` — missing or invalid `template_id` / `record`
+- `400` — invalid JSON, missing `template_id` / `data`, or unknown template ID
 - `401` — unauthorized
 - `500` — render error
 
@@ -418,7 +442,7 @@ No changes to existing services or templates required.
 ### Data Integrity
 
 - **Slow render**: `renderToBuffer` is synchronous and may be slow for large documents. Acceptable for MVP; Phase 2 can move to `@open-mercato/queue`.
-- **Missing line items**: `context.record` does not include line items (only `lineItemCount`). `toDocumentData()` returns empty `lines: []` until core exposes line items in the injection context.
+- **Line items fetched via raw SQL**: `QuotesDocumentService.fetchData` uses a raw SQL query because `SalesQuote` is not registered in the Awilix DI container. Customer data is resolved via `CustomerEntity` (which is in DI). Mitigation: encapsulated in one method; no impact on other services.
 
 ### Tenant & Data Isolation
 
@@ -570,7 +594,7 @@ Uses the existing core `attachments` module — no custom storage infrastructure
 
 ### Non-Compliant / Pending
 
-- **Line items missing from context.record**: `normalizeRecord()` returns `lines: []` until core exposes line items in the injection context. Not a blocker — PDF renders correctly with empty lines section.
+- **Raw SQL in QuotesDocumentService.fetchData**: `SalesQuote` is not in the DI container, so line items are fetched via `em.getConnection().execute(sql)`. Not a compliance violation per se (it uses the same `em` from the container), but it bypasses the ORM layer. Accepted for MVP; revisit if `SalesQuote` is added to DI.
 
 ### Verdict
 
@@ -591,3 +615,5 @@ Uses the existing core `attachments` module — no custom storage infrastructure
 | 2026-05-09 | Krzysztof Polak | Phase 5 implementation plan detailed — files to create/modify, data flow, key implementation notes added to spec; `attachment_id` nullable column added to `PdfGeneratedDocument` (populated in Phase 6) |
 | 2026-05-09 | Krzysztof Polak | Phase 6 rewritten — replaces custom S3/GCS storage with existing core `attachments` module; uses `POST /api/attachments` + `pdfDocuments` partition; download via `/api/attachments/file/{attachment_id}`; no custom storage infrastructure needed |
 | 2026-05-09 | Krzysztof Polak | Introduced `BaseDocumentService` base class — `registerTemplate()`, `getEntries()`, `formatDate()` centralised; `QuotesDocumentService` and `OrdersDocumentService` as subclasses; `normalizeRecord` per service replaces standalone `normalize-record.ts` files; `config/registry.ts` uses single `registerInternal([...spread])` call to avoid array clobber; built-in `order-invoice` template added (`OrderInvoiceDocument`); `order_pdf_tab` widget added; `examples/` reference folder added; `scaffold-pdf-templates` skill added; sandbox example PDF implementation removed (superseded by built-in) |
+| 2026-05-17 | Krzysztof Polak | **Template metadata hierarchy**: `moduleId` → `module` + `entity`; `category` → `documentType`. `BaseDocumentService` now requires `module` and `entity` abstract fields. Widget filters simplified to `{ entity: 'quotes' }` / `{ entity: 'orders' }`. `TemplateFilter` updated accordingly. |
+| 2026-05-17 | Krzysztof Polak | **Server-side data fetching via `fetchData` hook** — `BaseDocumentService` gains optional `fetchData({ data }, { container })` method called before normalization; `QuotesDocumentService` overrides it to load full quote with line items via raw SQL + DI container (resolves the missing-line-items limitation); `OrdersDocumentService` gains billing address enrichment. **API body field renamed**: `POST /generate` now accepts `data` (was `record`). **`normalizeRecord` renamed to `toTemplateData`** with `{ data }` input shape for consistency. **`filename` method added** to `BaseDocumentService` — derives the PDF download filename from normalized data; `Content-Disposition` header set from the returned value. **`enrichRecord` prop removed** from `PreviewPanel` and `TemplatesList` — no client-side enrichment; widgets pass raw `record` only. **`TemplateEntry` type introduced** (`TemplateMeta & TemplateRegistryEntry`). **`TemplateRegistry` interface** extracted to `interfaces.ts`. **`getMetas()` renamed to `listTemplates()`**. Error handling hardened in `PreviewPanel` (catches promise rejection) and generate route (catches JSON parse errors). QuotePage color scheme updated. |
