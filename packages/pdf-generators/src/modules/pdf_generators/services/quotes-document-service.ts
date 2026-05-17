@@ -55,7 +55,7 @@ export interface QuoteWidgetRecord {
     postalCode: string | number | null // API returns string or number depending on country
     country: string | null
   } | null
-  /** Populated server-side by enrichRecord — not present in the raw widget context. */
+  /** Populated server-side by fetchData — not present in the raw widget context. */
   lineItems?: QuoteLineItem[]
 }
 
@@ -106,7 +106,7 @@ export class QuotesDocumentService extends BaseDocumentService {
    * @param record - Raw QuoteWidgetRecord from the widget context
    * @param em - MikroORM EntityManager from createRequestContainer()
    */
-  override async enrichRecord(record: unknown, em: unknown): Promise<unknown> {
+  override async fetchData(record: unknown, em: unknown): Promise<unknown> {
     const r = record as QuoteWidgetRecord
     if (!r?.id) return record
 
@@ -136,7 +136,7 @@ export class QuotesDocumentService extends BaseDocumentService {
 
       return { ...r, lineItems }
     } catch (err) {
-      console.error('[QuotesDocumentService] enrichRecord failed, falling back to empty lines', err)
+      console.error('[QuotesDocumentService] fetchData failed, falling back to empty lines', err)
       return record
     }
   }
@@ -144,7 +144,7 @@ export class QuotesDocumentService extends BaseDocumentService {
   /**
    * Maps a raw QuoteWidgetRecord (enriched with lineItems) into the flat data shape expected by quote PDF templates.
    *
-   * @param record - Raw record from the widget context, enriched with lineItems by enrichRecord
+   * @param record - Raw record from the widget context, enriched with lineItems by fetchData
    * @returns Normalized data object passed to the template component
    */
   normalizeRecord(record: unknown): Record<string, unknown> {

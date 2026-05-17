@@ -1,3 +1,4 @@
+import type { AppContainer } from '@open-mercato/shared/lib/di/container'
 import type { TemplateRegistryEntry } from '../lib/interfaces'
 
 /**
@@ -30,21 +31,21 @@ export abstract class BaseDocumentService {
   /**
    * Normalizes a raw server record into the flat data shape expected by this service's templates.
    *
-   * @param record - Raw record from the widget context (already enriched if enrichRecord is defined)
+   * @param record - Raw record from the widget context (already enriched if fetchData is defined)
    * @returns Normalized data object passed to the template component
    */
   abstract normalizeRecord(record: unknown): Record<string, unknown>
 
   /**
    * Optional hook to fetch related data before normalization.
-   * Called server-side in the generate route with the MikroORM EntityManager.
+   * Called server-side in the generate route with the request-scoped DI container.
    * Override in concrete services that need data not available in the widget context (e.g. line items).
    *
    * @param record - Raw record from the widget context
-   * @param em - MikroORM EntityManager from the request-scoped DI container
+   * @param container - Request-scoped Awilix DI container
    * @returns Enriched record with related data attached
    */
-  async enrichRecord(record: unknown, _em: unknown): Promise<unknown> {
+  async fetchData(record: unknown, _container: AppContainer): Promise<unknown> {
     return record
   }
 
@@ -72,7 +73,7 @@ export abstract class BaseDocumentService {
       tags: t.tags,
       moduleId: this.moduleId,
       fromRecord: (record: unknown) => this.normalizeRecord(record),
-      enrichRecord: (record: unknown, em: unknown) => this.enrichRecord(record, em),
+      fetchData: (record: unknown, container: AppContainer) => this.fetchData(record, container),
       load: t.load,
     }))
   }

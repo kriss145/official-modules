@@ -19,6 +19,8 @@ export const metadata = {
  * @returns PDF binary stream or JSON error response
  */
 export async function POST(request: Request) {
+  const container = await createRequestContainer()
+  
   let body: { template_id: TemplateId; record: unknown }
 
   try {
@@ -33,18 +35,9 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Missing template_id or record' }, { status: 400 })
   }
 
-  try {
-    const container = await createRequestContainer()
-    console.log('[pdf-generators] Request container created successfully')
-    const em = container.resolve('em')
-    console.log('[pdf-generators] container OK, em:', typeof em)
-  } catch (err) {
-    console.error('[pdf-generators] createRequestContainer failed:', err)
-  }
-
   let template
   try {
-    template = await templateRegistry.load(template_id, record)
+    template = await templateRegistry.load(template_id, record, container)
   } catch {
     return NextResponse.json({ error: `Unknown template: ${template_id}` }, { status: 400 })
   }

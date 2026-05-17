@@ -73,34 +73,58 @@ class TemplateRegistry {
     }
   }
 
-  /**
-   * If the entry defines enrichRecord, fetches related data via em before normalization.
-   * Pass em as unknown — concrete services cast it to EntityManager internally.
-   *
-   * @param id - Template ID
-   * @param record - Raw record from the widget context
-   * @param em - MikroORM EntityManager from the request container
-   * @returns Enriched record (with related data attached) or the original record if no enrichment is defined
-   */
-  async enrich(id: string, record: unknown, em: unknown): Promise<unknown> {
+  private findTemplate(id: string): TemplateRegistryEntry {
     const entry = this.getAll().find((t) => t.id === id)
-    if (!entry?.enrichRecord) return record
-    return entry.enrichRecord(record, em)
+    if (!entry) throw new Error(`Unknown template: ${id}`)
+    return entry
   }
 
   /**
-   * Normalizes the raw record via entry.fromRecord, then loads and returns the template component.
+   * Fetches related data for the given template via the DI container.
+   * Returns the original record unchanged if the template defines no fetchData hook.
    *
    * @param id - Template ID
-   * @param record - Raw record from the server (already enriched if needed)
-   * @returns Loaded template with normalized data
-   * @throws Error if template ID is not found in the registry
+   * @param record - Raw record from the widget context
+   * @param container - Request-scoped Awilix DI container
    */
-  async load(id: string, record: unknown): Promise<LoadedTemplate> {
-    const entry = this.getAll().find((t) => t.id === id)
-    if (!entry) throw new Error(`Unknown template: ${id}`)
+  private async enrich(id: string, record: unknown, container: unknown): Promise<unknown> {
+    const entry = this.findTemplate(id)
+    if (!entry.fetchData) return record
+    return entry.fetchData(record, container)
+  }
+
+  /**
+   * Normalizes a (possibly enriched) record into the flat data shape expected by the template.
+   *
+   * @param id - Template ID
+   * @param record - Record from the widget context (already enriched if needed)
+   */
+  normalize(id: string, record: unknown): Record<string, unknown> {
+    return this.findTemplate(id).fromRecord(record)
+  }
+
+  /**
+   * Lazy-loads the React-PDF component for the given template.
+   *
+   * @param id - Template ID
+   */
+  async loadComponent(id: string): Promise<LoadedTemplate['component']> {
+    return this.findTemplate(id).load()
+  }
+
+  /**
+   * Enrich → normalize → load component in one call.
+   * Pass container to trigger fetchData; omit it to skip enrichment.
+   *
+   * @param id - Template ID
+   * @param record - Raw record from the widget context
+   * @param container - Request-scoped Awilix DI container (optional)
+   */
+  async load(id: string, record: unknown, container?: unknown): Promise<LoadedTemplate> {
+    const entry = this.findTemplate(id)
+    const enriched = container ? await this.enrich(id, record, container) : record
     const component = await entry.load()
-    const data = entry.fromRecord(record)
+    const data = entry.fromRecord(enriched)
     return { id: entry.id, label: entry.label, description: entry.description, category: entry.category, tags: entry.tags, moduleId: entry.moduleId, component, data }
   }
 }

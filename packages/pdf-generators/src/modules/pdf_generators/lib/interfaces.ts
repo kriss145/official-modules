@@ -1,3 +1,5 @@
+import type { AppContainer } from '@open-mercato/shared/lib/di/container'
+
 /**
  * Minimal metadata for a PDF template — used in listings and filtering.
  */
@@ -16,7 +18,7 @@ export interface TemplateMeta {
 export interface TemplateRegistryEntry extends TemplateMeta {
   fromRecord: (record: unknown) => Record<string, unknown> // maps raw server record to the template data shape
   load: () => Promise<React.ComponentType<{ data: Record<string, unknown> }>> // lazy-loaded React-PDF component
-  enrichRecord?: (record: unknown, em: unknown) => Promise<unknown> // optional: fetch related data server-side before normalization
+  fetchData?: (record: unknown, container: AppContainer) => Promise<unknown> // optional: fetch related data server-side before normalization
 }
 
 /**
