@@ -68,9 +68,9 @@ export class QuotesDocumentService extends BaseDocumentService {
    * @param input - Widget record containing at minimum { id }
    * @param ctx - Request-scoped Awilix DI container
    */
-  override async fetchData({ record }: { record: unknown }, { container }: { container: AppContainer }): Promise<unknown> {
-    const { id } = record as { id: string }
-    if (!id) return record
+  override async fetchData({ data }: { data: unknown }, { container }: { container: AppContainer }): Promise<unknown> {
+    const { id } = data as { id: string }
+    if (!id) return data
 
     try {
       // TODO: switch to em.findOne(SalesQuote, ...) once SalesQuote is registered in the sales module DI
@@ -84,7 +84,7 @@ export class QuotesDocumentService extends BaseDocumentService {
          FROM sales_quotes WHERE id = ? LIMIT 1`,
         [id]
       )
-      if (!quote) return record
+      if (!quote) return data
 
       const rows = await conn.execute(
         `SELECT id, name, description, quantity, unit_price_net, unit_price_gross,
@@ -122,12 +122,17 @@ export class QuotesDocumentService extends BaseDocumentService {
       } satisfies QuoteRecord
     } catch (err) {
       console.error('[QuotesDocumentService] fetchData failed', err)
-      return record
+      return data
     }
   }
 
-  normalizeRecord(record: unknown): Record<string, unknown> {
-    const r = record as QuoteRecord
+  override filename({ data }: { data: Record<string, unknown> }): string {
+    const num = (data.document as any)?.number
+    return num ? `offer-${num}.pdf` : 'offer.pdf'
+  }
+
+  toTemplateData({ data }: { data: unknown }): Record<string, unknown> {
+    const r = data as QuoteRecord
     const customer = r.customerSnapshot as any
     const billing = r.billingAddressSnapshot as any
 

@@ -17,8 +17,9 @@ export interface TemplateMeta {
  */
 export interface TemplateRegistryEntry extends TemplateMeta {
   fromRecord: (record: unknown) => Record<string, unknown> // maps raw server record to the template data shape
+  filename: (input: { data: Record<string, unknown> }) => string // generates the PDF filename from normalized data
   load: () => Promise<React.ComponentType<{ data: Record<string, unknown> }>> // lazy-loaded React-PDF component
-  fetchData?: (input: { record: unknown }, ctx: { container: AppContainer }) => Promise<unknown> // optional: fetch related data server-side before normalization
+  fetchData?: (input: { data: unknown }, ctx: { container: AppContainer }) => Promise<unknown> // optional: fetch related data server-side before normalization
 }
 
 /**

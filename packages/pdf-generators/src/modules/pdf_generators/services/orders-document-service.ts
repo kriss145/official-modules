@@ -68,16 +68,16 @@ export class OrdersDocumentService extends BaseDocumentService {
    * @param record - Widget record containing at minimum { id }
    * @param container - Request-scoped Awilix DI container
    */
-  override async fetchData({ record }: { record: unknown }, { container }: { container: AppContainer }): Promise<unknown> {
-    const { id } = record as { id: string }
-    if (!id) return record
+  override async fetchData({ data }: { data: unknown }, { container }: { container: AppContainer }): Promise<unknown> {
+    const { id } = data as { id: string }
+    if (!id) return data
 
     try {
       const em = container.resolve('em') as { findOne: (entity: unknown, where: unknown, options?: unknown) => Promise<unknown> }
       const SalesOrder = container.resolve('SalesOrder')
 
       const order = await em.findOne(SalesOrder, { id }, { populate: ['lines'] }) as any
-      if (!order) return record
+      if (!order) return data
 
       const lines: OrderLineItem[] = (order.lines?.getItems?.() ?? []).map((line: any) => ({
         id: line.id,
@@ -108,12 +108,17 @@ export class OrdersDocumentService extends BaseDocumentService {
       } satisfies OrderRecord
     } catch (err) {
       console.error('[OrdersDocumentService] fetchData failed', err)
-      return record
+      return data
     }
   }
 
-  normalizeRecord(record: unknown): Record<string, unknown> {
-    const r = record as OrderRecord
+  override filename({ data }: { data: Record<string, unknown> }): string {
+    const num = (data.document as any)?.number
+    return num ? `invoice-${num}.pdf` : 'invoice.pdf'
+  }
+
+  toTemplateData({ data }: { data: unknown }): Record<string, unknown> {
+    const r = data as OrderRecord
     const customer = r.customerSnapshot as any
     const billing = r.billingAddressSnapshot as any
 

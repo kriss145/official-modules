@@ -34,7 +34,17 @@ export abstract class BaseDocumentService {
    * @param record - Raw record from the widget context (already enriched if fetchData is defined)
    * @returns Normalized data object passed to the template component
    */
-  abstract normalizeRecord(record: unknown): Record<string, unknown>
+  abstract toTemplateData(input: { data: unknown }): Record<string, unknown>
+
+  /**
+   * Returns the filename for the generated PDF.
+   * Override in concrete services to include document-specific identifiers (e.g. order number).
+   *
+   * @param data - Normalized data returned by toTemplateData
+   */
+  filename(_input: { data: Record<string, unknown> }): string {
+    return 'document.pdf'
+  }
 
   /**
    * Optional hook to fetch related data before normalization.
@@ -45,8 +55,8 @@ export abstract class BaseDocumentService {
    * @param container - Request-scoped Awilix DI container
    * @returns Enriched record with related data attached
    */
-  async fetchData(_input: { record: unknown }, _ctx: { container: AppContainer }): Promise<unknown> {
-    return _input.record
+  async fetchData(input: { data: unknown }, _ctx: { container: AppContainer }): Promise<unknown> {
+    return input.data
   }
 
   /**
@@ -65,16 +75,17 @@ export abstract class BaseDocumentService {
    * @returns Array of registry entries ready to be passed to templateRegistry
    */
   getEntries(): TemplateRegistryEntry[] {
-    return Array.from(this.templates_.values()).map((t) => ({
-      id: t.id,
-      label: t.label,
-      description: t.description,
-      category: t.category,
-      tags: t.tags,
+    return Array.from(this.templates_.values()).map((template) => ({
+      id: template.id,
+      label: template.label,
+      description: template.description,
+      category: template.category,
+      tags: template.tags,
       moduleId: this.moduleId,
-      fromRecord: (record: unknown) => this.normalizeRecord(record),
-      fetchData: (input: { record: unknown }, ctx: { container: AppContainer }) => this.fetchData(input, ctx),
-      load: t.load,
+      fromRecord: (data: unknown) => this.toTemplateData({ data }),
+      filename: (data: Record<string, unknown>) => this.filename({ data }),
+      fetchData: (input: { data: unknown }, ctx: { container: AppContainer }) => this.fetchData(input, ctx),
+      load: template.load,
     }))
   }
 }

@@ -42,7 +42,7 @@ export function PreviewPanel({ open, onClose, record, template }: PreviewPanelPr
       const { result } = await apiCall('/api/pdf-generators/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ template_id: template.id, record }),
+        body: JSON.stringify({ template_id: template.id, data: record }),
       }, {
         parse: (res) => res.blob(),
       })

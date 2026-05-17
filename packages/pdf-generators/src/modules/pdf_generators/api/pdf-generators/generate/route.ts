@@ -21,7 +21,7 @@ export const metadata = {
 export async function POST(request: Request) {
   const container = await createRequestContainer()
   
-  let body: { template_id: TemplateId; record: unknown }
+  let body: { template_id: TemplateId; data: unknown }
 
   try {
     body = await request.json()
@@ -29,15 +29,15 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
   }
 
-  const { template_id, record } = body
+  const { template_id, data } = body
 
-  if (!template_id || !record) {
-    return NextResponse.json({ error: 'Missing template_id or record' }, { status: 400 })
+  if (!template_id || !data) {
+    return NextResponse.json({ error: 'Missing template_id or data' }, { status: 400 })
   }
 
   let template
   try {
-    template = await templateRegistry.load({ id: template_id, record }, { container })
+    template = await templateRegistry.load({ id: template_id, record: data }, { container })
   } catch {
     return NextResponse.json({ error: `Unknown template: ${template_id}` }, { status: 400 })
   }
@@ -48,7 +48,7 @@ export async function POST(request: Request) {
   return new NextResponse(new Uint8Array(buffer), {
     headers: {
       'Content-Type': 'application/pdf',
-      'Content-Disposition': `attachment; filename="${template_id}.pdf"`,
+      'Content-Disposition': `attachment; filename="${template.filename}"`,
     },
   })
 }

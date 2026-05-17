@@ -3,6 +3,7 @@ import type { TemplateMeta, TemplateRegistryEntry, PdfTemplateDefinition } from 
 
 export interface LoadedTemplate extends PdfTemplateDefinition {
   data: Record<string, unknown>
+  filename: string
 }
 
 class TemplateRegistry {
@@ -61,7 +62,7 @@ class TemplateRegistry {
   private async enrich(id: string, record: unknown, container: AppContainer): Promise<unknown> {
     const entry = this.findTemplate(id)
     if (!entry.fetchData) return record
-    return entry.fetchData({ record }, { container })
+    return entry.fetchData({ data: record }, { container })
   }
 
   /**
@@ -77,7 +78,8 @@ class TemplateRegistry {
     const enriched = container ? await this.enrich(id, record, container) : record
     const component = await entry.load()
     const data = entry.fromRecord(enriched)
-    return { id: entry.id, label: entry.label, description: entry.description, category: entry.category, tags: entry.tags, moduleId: entry.moduleId, component, data }
+    const filename = entry.filename({ data })
+    return { id: entry.id, label: entry.label, description: entry.description, category: entry.category, tags: entry.tags, moduleId: entry.moduleId, component, data, filename }
   }
 }
 
