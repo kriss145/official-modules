@@ -14,7 +14,7 @@ export const metadata = {
  * @returns JSON with `{ internal: TemplateMeta[], external: TemplateMeta[] }`
  */
 export async function GET() {
-  return NextResponse.json(templateRegistry.getMetas())
+  return NextResponse.json(templateRegistry.listTemplates())
 }
 
 export const openApi: OpenApiRouteDoc = {

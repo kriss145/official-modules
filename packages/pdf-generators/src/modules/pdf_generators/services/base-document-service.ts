@@ -1,5 +1,5 @@
 import type { AppContainer } from '@open-mercato/shared/lib/di/container'
-import type { TemplateRegistryEntry } from '../lib/interfaces'
+import type { TemplateEntry } from '../lib/interfaces'
 
 /**
  * Registration shape for a single template within a document service.
@@ -69,12 +69,12 @@ export abstract class BaseDocumentService {
   }
 
   /**
-   * Returns all templates registered with this service as TemplateRegistryEntry objects,
+   * Returns all templates registered with this service as TemplateEntry objects,
    * with moduleId and fromRecord bound to this service instance.
    *
    * @returns Array of registry entries ready to be passed to templateRegistry
    */
-  getEntries(): TemplateRegistryEntry[] {
+  getEntries(): TemplateEntry[] {
     return Array.from(this.templates_.values()).map((template) => ({
       id: template.id,
       label: template.label,

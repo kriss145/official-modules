@@ -1,38 +1,32 @@
 import type { AppContainer } from '@open-mercato/shared/lib/di/container'
-import type { TemplateMeta, TemplateRegistryEntry, PdfTemplateDefinition } from './interfaces'
+import type { TemplateMeta, TemplateEntry, TemplateRegistry as TemplateRegistryInterface, LoadedTemplate } from './interfaces'
 
-export interface LoadedTemplate extends PdfTemplateDefinition {
-  data: Record<string, unknown>
-  filename: string
-}
+class TemplateRegistry implements TemplateRegistryInterface {
+  private internal: TemplateEntry[] = []
+  private external: TemplateEntry[] = []
 
-class TemplateRegistry {
-  // split into two lists so getMetas can report provenance (built-in vs user-registered)
-  private internal: TemplateRegistryEntry[] = []
-  private external: TemplateRegistryEntry[] = []
-
-  registerInternal(entries: TemplateRegistryEntry[]): void {
+  registerInternal(entries: TemplateEntry[]): void {
     this.internal = entries
   }
 
-  registerExternal(entries: TemplateRegistryEntry[]): void {
+  registerExternal(entries: TemplateEntry[]): void {
     this.external = entries
   }
 
-  getInternal(): TemplateRegistryEntry[] {
+  getInternal(): TemplateEntry[] {
     return this.internal
   }
 
-  getExternal(): TemplateRegistryEntry[] {
+  getExternal(): TemplateEntry[] {
     return this.external
   }
 
-  getAll(): TemplateRegistryEntry[] {
+  getAll(): TemplateEntry[] {
     return [...this.getInternal(), ...this.getExternal()]
   }
 
-  getMetas(): { internal: TemplateMeta[]; external: TemplateMeta[] } {
-    const toMeta = ({ id, label, description, category, tags, moduleId }: TemplateRegistryEntry): TemplateMeta =>
+  listTemplates(): { internal: TemplateMeta[]; external: TemplateMeta[] } {
+    const toMeta = ({ id, label, description, category, tags, moduleId }: TemplateEntry): TemplateMeta =>
       ({ id, label, description, category, tags, moduleId })
     return {
       internal: this.getInternal().map(toMeta),
@@ -46,8 +40,8 @@ class TemplateRegistry {
    * @param id - Template ID
    * @throws Error if template is not registered
    */
-  private findTemplate(id: string): TemplateRegistryEntry {
-    const entry = this.getAll().find((t) => t.id === id)
+  private findTemplate(id: string): TemplateEntry {
+    const entry = this.getAll().find((template) => template.id === id)
     if (!entry) throw new Error(`Unknown template: ${id}`)
     return entry
   }
@@ -59,10 +53,10 @@ class TemplateRegistry {
    * @param record - Raw record from the widget
    * @param container - Request-scoped DI container passed to fetchData
    */
-  private async enrich(id: string, record: unknown, container: AppContainer): Promise<unknown> {
+  private async enrich({ id, data }: { id: string; data: unknown }, { container }: { container: AppContainer }): Promise<unknown> {
     const entry = this.findTemplate(id)
-    if (!entry.fetchData) return record
-    return entry.fetchData({ data: record }, { container })
+    if (!entry.fetchData) return data
+    return entry.fetchData({ data }, { container })
   }
 
   /**
@@ -73,13 +67,13 @@ class TemplateRegistry {
    * @param container - Request-scoped DI container; omit to skip fetchData
    * @throws Error if template ID is not registered
    */
-  async load({ id, record }: { id: string; record: unknown }, { container }: { container?: AppContainer } = {}): Promise<LoadedTemplate> {
+  async load({ id, data: rawData }: { id: string; data: unknown }, { container }: { container: AppContainer }): Promise<LoadedTemplate> {
     const entry = this.findTemplate(id)
-    const enriched = container ? await this.enrich(id, record, container) : record
+    const enriched = await this.enrich({ id, data: rawData }, { container })
     const component = await entry.load()
     const data = entry.fromRecord(enriched)
     const filename = entry.filename({ data })
-    return { id: entry.id, label: entry.label, description: entry.description, category: entry.category, tags: entry.tags, moduleId: entry.moduleId, component, data, filename }
+    return { component, data, filename }
   }
 }
 

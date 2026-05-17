@@ -1,39 +1,47 @@
 import type { AppContainer } from '@open-mercato/shared/lib/di/container'
 
-/**
- * Minimal metadata for a PDF template — used in listings and filtering.
- */
+/** UI-facing metadata for a PDF template — used in listings and filtering. */
 export interface TemplateMeta {
   id: string
   label: string
   description: string
   category: string
   tags: string[]
-  moduleId: string
+  moduleId: string // owning module — used to scope template availability per widget
 }
 
-/**
- * Full registry entry — extends metadata with runtime loading and data normalization.
- */
-export interface TemplateRegistryEntry extends TemplateMeta {
-  fromRecord: (record: unknown) => Record<string, unknown> // maps raw server record to the template data shape
-  filename: (input: { data: Record<string, unknown> }) => string // generates the PDF filename from normalized data
+/** Runtime handlers for a PDF template — normalization, lazy loading, and optional server-side data fetching. */
+export interface TemplateRegistryEntry {
+  fromRecord: (data: unknown) => Record<string, unknown> // maps enriched server data to the flat shape expected by the template component
+  filename: (input: { data: Record<string, unknown> }) => string // derives the PDF filename from normalized data
   load: () => Promise<React.ComponentType<{ data: Record<string, unknown> }>> // lazy-loaded React-PDF component
-  fetchData?: (input: { data: unknown }, ctx: { container: AppContainer }) => Promise<unknown> // optional: fetch related data server-side before normalization
+  fetchData?: (input: { data: unknown }, ctx: { container: AppContainer }) => Promise<unknown> // server-side hook; called before normalization to fetch related data
 }
 
-/**
- * Resolved template ready for rendering — component is already loaded.
- */
-export interface PdfTemplateDefinition extends TemplateMeta {
-  component: React.ComponentType<{ data: Record<string, unknown> }>
-}
+/** Full template descriptor — UI metadata combined with runtime handlers. */
+export type TemplateEntry = TemplateMeta & TemplateRegistryEntry
 
-/**
- * Optional filter criteria for querying templates from the registry.
- */
+/** Filter criteria for querying templates from the registry. */
 export interface TemplateFilter {
   category?: string
   tags?: string[]
   moduleId?: string
+}
+
+/** Resolved template ready for rendering — component is loaded, data is normalized. */
+export interface LoadedTemplate {
+  component: React.ComponentType<{ data: Record<string, unknown> }>
+  data: Record<string, unknown>
+  filename: string
+}
+
+/** Contract for the template registry — extracted for testability. */
+export interface TemplateRegistry {
+  registerInternal(entries: TemplateEntry[]): void
+  registerExternal(entries: TemplateEntry[]): void
+  getInternal(): TemplateEntry[]
+  getExternal(): TemplateEntry[]
+  getAll(): TemplateEntry[]
+  listTemplates(): { internal: TemplateMeta[]; external: TemplateMeta[] }
+  load(input: { id: string; data: unknown }, ctx: { container: AppContainer }): Promise<LoadedTemplate>
 }
