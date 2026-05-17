@@ -92,6 +92,24 @@ export class OrdersDocumentService extends BaseDocumentService {
         currencyCode: line.currencyCode,
       }))
 
+      let billingAddressSnapshot = order.billingAddressSnapshot ?? null
+
+      // fall back to the customer's primary address when the order has no billing address snapshot
+      if (!billingAddressSnapshot && order.customerEntityId) {
+        const CustomerAddress = container.resolve('CustomerAddress')
+        const address = await em.findOne(CustomerAddress, { entity: order.customerEntityId, isPrimary: true }) as any
+        if (address) {
+          billingAddressSnapshot = {
+            addressLine1: address.addressLine1,
+            addressLine2: address.addressLine2 ?? null,
+            city: address.city ?? null,
+            region: address.region ?? null,
+            postalCode: address.postalCode ?? null,
+            country: address.country ?? null,
+          }
+        }
+      }
+
       return {
         id: order.id,
         orderNumber: order.orderNumber,
@@ -103,7 +121,7 @@ export class OrdersDocumentService extends BaseDocumentService {
         grandTotalGrossAmount: order.grandTotalGrossAmount,
         taxTotalAmount: order.taxTotalAmount,
         customerSnapshot: order.customerSnapshot ?? null,
-        billingAddressSnapshot: order.billingAddressSnapshot ?? null,
+        billingAddressSnapshot,
         lines,
       } satisfies OrderRecord
     } catch (err) {
@@ -119,8 +137,8 @@ export class OrdersDocumentService extends BaseDocumentService {
 
   toTemplateData({ data }: { data: unknown }): Record<string, unknown> {
     const r = data as OrderRecord
-    const customer = r.customerSnapshot as any
-    const billing = r.billingAddressSnapshot as any
+    const customer = typeof r.customerSnapshot === 'string' ? JSON.parse(r.customerSnapshot) : r.customerSnapshot as any
+    const billing = typeof r.billingAddressSnapshot === 'string' ? JSON.parse(r.billingAddressSnapshot) : r.billingAddressSnapshot as any
 
     const addressParts = [
       billing?.addressLine1,
@@ -148,9 +166,11 @@ export class OrdersDocumentService extends BaseDocumentService {
       client: {
         name: customer?.contact
           ? `${customer.contact.firstName} ${customer.contact.lastName}`
-          : (customer?.customer?.displayName ?? ''),
-        company: customer?.customer?.companyProfile?.legalName ?? customer?.customer?.displayName ?? undefined,
-        email: customer?.contact?.email ?? customer?.customer?.primaryEmail ?? undefined,
+          : (customer?.customer?.personProfile
+            ? `${customer.customer.personProfile.firstName} ${customer.customer.personProfile.lastName}`
+            : (customer?.customer?.displayName ?? '')),
+        company: customer?.customer?.companyProfile?.legalName ?? customer?.customer?.companyProfile?.brandName ?? undefined,
+        email: customer?.customer?.primaryEmail ?? undefined,
         address: addressParts.length > 0 ? addressParts.join(', ') : undefined,
       },
       seller: {

@@ -133,8 +133,8 @@ export class QuotesDocumentService extends BaseDocumentService {
 
   toTemplateData({ data }: { data: unknown }): Record<string, unknown> {
     const r = data as QuoteRecord
-    const customer = r.customerSnapshot as any
-    const billing = r.billingAddressSnapshot as any
+    const customer = typeof r.customerSnapshot === 'string' ? JSON.parse(r.customerSnapshot) : r.customerSnapshot as any
+    const billing = typeof r.billingAddressSnapshot === 'string' ? JSON.parse(r.billingAddressSnapshot) : r.billingAddressSnapshot as any
 
     const addressParts = [
       billing?.addressLine1,
@@ -162,9 +162,11 @@ export class QuotesDocumentService extends BaseDocumentService {
       client: {
         name: customer?.contact
           ? `${customer.contact.firstName} ${customer.contact.lastName}`
-          : (customer?.customer?.displayName ?? ''),
-        email: customer?.contact?.email ?? customer?.customer?.primaryEmail ?? undefined,
-        company: customer?.customer?.companyProfile?.legalName ?? customer?.customer?.displayName ?? undefined,
+          : (customer?.customer?.personProfile
+            ? `${customer.customer.personProfile.firstName} ${customer.customer.personProfile.lastName}`
+            : (customer?.customer?.displayName ?? '')),
+        company: customer?.customer?.companyProfile?.legalName ?? customer?.customer?.companyProfile?.brandName ?? undefined,
+        email: customer?.customer?.primaryEmail ?? undefined,
         address: addressParts.length > 0 ? addressParts.join(', ') : undefined,
       },
       seller: {
