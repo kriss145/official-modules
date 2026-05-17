@@ -55,6 +55,7 @@ export class OrdersDocumentService extends BaseDocumentService {
       description: 'Standard invoice for a sales order.',
       documentType: 'invoice',
       tags: ['invoice', 'order', 'sales'],
+      note: 'Rendered in the PDF tab on the Order detail page (sales.document.detail.order:tabs).',
       load: () =>
         import('../templates/sales/orders/templates/order-invoice').then(
           (m) => m.OrderInvoiceDocument as unknown as React.ComponentType<{ data: Record<string, unknown> }>

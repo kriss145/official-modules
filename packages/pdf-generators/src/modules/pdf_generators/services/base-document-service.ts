@@ -11,6 +11,7 @@ export interface DocumentTemplateEntry {
   description: string
   documentType: string
   tags: string[]
+  note?: string
   load: () => Promise<React.ComponentType<{ data: Record<string, unknown> }>>
 }
 
@@ -84,6 +85,7 @@ export abstract class BaseDocumentService {
       entity: this.entity,
       documentType: template.documentType,
       tags: template.tags,
+      note: template.note,
       fromRecord: (data: unknown) => this.toTemplateData({ data }),
       filename: (data: Record<string, unknown>) => this.filename({ data }),
       fetchData: (input: { data: unknown }, ctx: { container: AppContainer }) => this.fetchData(input, ctx),

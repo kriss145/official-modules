@@ -55,6 +55,7 @@ export class QuotesDocumentService extends BaseDocumentService {
       description: 'Professional sales offer.',
       documentType: 'offer',
       tags: ['offer', 'sales'],
+      note: 'Rendered in the PDF tab on the Quote detail page (sales.document.detail.quote:tabs).',
       load: () =>
         import('../templates/sales/quotes/templates/sales-offer').then(
           (m) => m.SalesOfferDocument as unknown as React.ComponentType<{ data: Record<string, unknown> }>
