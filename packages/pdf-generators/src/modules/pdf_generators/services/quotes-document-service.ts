@@ -5,59 +5,20 @@ import { formatDate } from '../utils/formatDate'
 /** Template IDs registered by this service — exported for TemplateId type derivation. */
 export const QUOTES_TEMPLATE_IDS = ['sales-offer'] as const
 
-/**
- * Raw quote record passed from the widget context — shape mirrors the API response snapshot fields.
- */
-export interface QuoteWidgetRecord {
+/** Fully loaded quote data fetched from the database by fetchData. */
+export interface QuoteRecord {
   id: string
   quoteNumber: string
-  status: string
   currencyCode: string
-  validFrom: string | null
-  validUntil: string | null
-  comment: string | null
-  subtotalNetAmount: number | null
-  subtotalGrossAmount: number | null
-  taxTotalAmount: number | null
-  grandTotalNetAmount: number | null
-  grandTotalGrossAmount: number | null
-  discountTotalAmount: number | null
-  shippingNetAmount: number | null
-  shippingGrossAmount: number | null
-  customerSnapshot: {
-    customer: {
-      id: string
-      kind: string
-      displayName: string
-      primaryEmail: string | null
-      primaryPhone: string | null
-      companyProfile: {
-        legalName: string
-        brandName: string | null
-        domain: string | null
-        websiteUrl: string | null
-      } | null
-    }
-    contact: {
-      id: string
-      firstName: string
-      lastName: string
-      email: string | null
-      phone: string | null
-    } | null
-  } | null
-  billingAddressSnapshot: {
-    companyName: string | null
-    name: string | null
-    addressLine1: string | null
-    addressLine2: string | null
-    city: string | null
-    region: string | null
-    postalCode: string | number | null // API returns string or number depending on country
-    country: string | null
-  } | null
-  /** Populated server-side by fetchData — not present in the raw widget context. */
-  lineItems?: QuoteLineItem[]
+  validFrom: Date | null
+  validUntil: Date | null
+  comments: string | null
+  grandTotalNetAmount: string
+  grandTotalGrossAmount: string
+  taxTotalAmount: string
+  customerSnapshot: Record<string, unknown> | null
+  billingAddressSnapshot: Record<string, unknown> | null
+  lines: QuoteLineItem[]
 }
 
 export interface QuoteLineItem {
@@ -76,8 +37,8 @@ export interface QuoteLineItem {
 /**
  * Document service for the Quotes module.
  *
- * Owns all PDF templates related to quotes and defines how raw QuoteWidgetRecord
- * data is normalized into the flat shape expected by those templates.
+ * fetchData loads the full quote from the database.
+ * normalizeRecord maps it to the flat shape expected by PDF templates.
  */
 export class QuotesDocumentService extends BaseDocumentService {
   readonly id = 'quotes'
@@ -101,29 +62,38 @@ export class QuotesDocumentService extends BaseDocumentService {
   }
 
   /**
-   * Fetches quote line items directly from the database via the request-scoped EntityManager.
-   * Attaches them as `lineItems` on the record before normalizeRecord runs.
+   * Loads the full quote with line items from the database.
+   * The widget only needs to pass { id }.
    *
-   * @param record - Raw QuoteWidgetRecord from the widget context
-   * @param em - MikroORM EntityManager from createRequestContainer()
+   * @param input - Widget record containing at minimum { id }
+   * @param ctx - Request-scoped Awilix DI container
    */
   override async fetchData({ record }: { record: unknown }, { container }: { container: AppContainer }): Promise<unknown> {
-    const r = record as QuoteWidgetRecord
-    if (!r?.id) return record
+    const { id } = record as { id: string }
+    if (!id) return record
 
     try {
+      // TODO: switch to em.findOne(SalesQuote, ...) once SalesQuote is registered in the sales module DI
       const em = container.resolve('em') as any
-      const conn = em.getConnection() as { execute: (sql: string, params?: unknown[]) => Promise<unknown[]> }
+      const conn = em.getConnection() as { execute: (sql: string, params?: unknown[]) => Promise<any[]> }
+
+      const [quote] = await conn.execute(
+        `SELECT id, quote_number, currency_code, valid_from, valid_until, comments,
+                grand_total_net_amount, grand_total_gross_amount, tax_total_amount,
+                customer_snapshot, billing_address_snapshot
+         FROM sales_quotes WHERE id = ? LIMIT 1`,
+        [id]
+      )
+      if (!quote) return record
+
       const rows = await conn.execute(
         `SELECT id, name, description, quantity, unit_price_net, unit_price_gross,
                 total_net_amount, total_gross_amount, tax_rate, currency_code
-         FROM sales_quote_lines
-         WHERE quote_id = ?
-         ORDER BY line_number ASC`,
-        [r.id]
+         FROM sales_quote_lines WHERE quote_id = ? ORDER BY line_number ASC`,
+        [id]
       )
 
-      const lineItems: QuoteLineItem[] = (rows ?? []).map((row: any) => ({
+      const lines: QuoteLineItem[] = rows.map((row) => ({
         id: row.id,
         name: row.name ?? null,
         description: row.description ?? null,
@@ -136,24 +106,30 @@ export class QuotesDocumentService extends BaseDocumentService {
         currencyCode: row.currency_code,
       }))
 
-      return { ...r, lineItems }
+      return {
+        id: quote.id,
+        quoteNumber: quote.quote_number,
+        currencyCode: quote.currency_code,
+        validFrom: quote.valid_from ? new Date(quote.valid_from) : null,
+        validUntil: quote.valid_until ? new Date(quote.valid_until) : null,
+        comments: quote.comments ?? null,
+        grandTotalNetAmount: quote.grand_total_net_amount,
+        grandTotalGrossAmount: quote.grand_total_gross_amount,
+        taxTotalAmount: quote.tax_total_amount,
+        customerSnapshot: quote.customer_snapshot ?? null,
+        billingAddressSnapshot: quote.billing_address_snapshot ?? null,
+        lines,
+      } satisfies QuoteRecord
     } catch (err) {
-      console.error('[QuotesDocumentService] fetchData failed, falling back to empty lines', err)
+      console.error('[QuotesDocumentService] fetchData failed', err)
       return record
     }
   }
 
-  /**
-   * Maps a raw QuoteWidgetRecord (enriched with lineItems) into the flat data shape expected by quote PDF templates.
-   *
-   * @param record - Raw record from the widget context, enriched with lineItems by fetchData
-   * @returns Normalized data object passed to the template component
-   */
   normalizeRecord(record: unknown): Record<string, unknown> {
-    const r = record as QuoteWidgetRecord
-    const customer = r.customerSnapshot?.customer
-    const contact = r.customerSnapshot?.contact
-    const billing = r.billingAddressSnapshot
+    const r = record as QuoteRecord
+    const customer = r.customerSnapshot as any
+    const billing = r.billingAddressSnapshot as any
 
     const addressParts = [
       billing?.addressLine1,
@@ -163,7 +139,7 @@ export class QuotesDocumentService extends BaseDocumentService {
       billing?.country,
     ].filter(Boolean)
 
-    const lines = (r.lineItems ?? []).map((line) => ({
+    const lines = (r.lines ?? []).map((line) => ({
       title: line.name ?? '',
       description: line.description ?? undefined,
       quantity: Number(line.quantity),
@@ -175,14 +151,15 @@ export class QuotesDocumentService extends BaseDocumentService {
     return {
       document: {
         number: r.quoteNumber,
-        date: r.validFrom ? formatDate(r.validFrom) : '',
-        validUntil: r.validUntil ? formatDate(r.validUntil) : undefined,
+        date: r.validFrom ? formatDate(r.validFrom.toISOString()) : formatDate(new Date().toISOString()),
+        validUntil: r.validUntil ? formatDate(r.validUntil.toISOString()) : undefined,
       },
       client: {
-        // contact takes priority over customer displayName for individual recipients
-        name: contact ? `${contact.firstName} ${contact.lastName}` : (customer?.displayName ?? ''),
-        email: contact?.email ?? customer?.primaryEmail ?? undefined,
-        company: customer?.companyProfile?.legalName ?? customer?.displayName ?? undefined,
+        name: customer?.contact
+          ? `${customer.contact.firstName} ${customer.contact.lastName}`
+          : (customer?.customer?.displayName ?? ''),
+        email: customer?.contact?.email ?? customer?.customer?.primaryEmail ?? undefined,
+        company: customer?.customer?.companyProfile?.legalName ?? customer?.customer?.displayName ?? undefined,
         address: addressParts.length > 0 ? addressParts.join(', ') : undefined,
       },
       seller: {
@@ -192,12 +169,12 @@ export class QuotesDocumentService extends BaseDocumentService {
       },
       lines,
       totals: {
-        subtotal: r.grandTotalNetAmount ?? 0,
-        tax: r.taxTotalAmount ?? 0,
-        total: r.grandTotalGrossAmount ?? 0,
+        subtotal: Number(r.grandTotalNetAmount ?? 0),
+        tax: Number(r.taxTotalAmount ?? 0),
+        total: Number(r.grandTotalGrossAmount ?? 0),
         currency: r.currencyCode,
       },
-      notes: r.comment ?? undefined,
+      notes: r.comments ?? undefined,
     }
   }
 }
