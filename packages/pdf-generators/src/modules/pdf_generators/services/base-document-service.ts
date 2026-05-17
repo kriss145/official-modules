@@ -45,8 +45,8 @@ export abstract class BaseDocumentService {
    * @param container - Request-scoped Awilix DI container
    * @returns Enriched record with related data attached
    */
-  async fetchData(record: unknown, _container: AppContainer): Promise<unknown> {
-    return record
+  async fetchData(_input: { record: unknown }, _ctx: { container: AppContainer }): Promise<unknown> {
+    return _input.record
   }
 
   /**
@@ -73,7 +73,7 @@ export abstract class BaseDocumentService {
       tags: t.tags,
       moduleId: this.moduleId,
       fromRecord: (record: unknown) => this.normalizeRecord(record),
-      fetchData: (record: unknown, container: AppContainer) => this.fetchData(record, container),
+      fetchData: (input: { record: unknown }, ctx: { container: AppContainer }) => this.fetchData(input, ctx),
       load: t.load,
     }))
   }

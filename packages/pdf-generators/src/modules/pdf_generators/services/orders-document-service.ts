@@ -68,7 +68,7 @@ export class OrdersDocumentService extends BaseDocumentService {
    * @param record - Widget record containing at minimum { id }
    * @param container - Request-scoped Awilix DI container
    */
-  override async fetchData(record: unknown, container: AppContainer): Promise<unknown> {
+  override async fetchData({ record }: { record: unknown }, { container }: { container: AppContainer }): Promise<unknown> {
     const { id } = record as { id: string }
     if (!id) return record
 

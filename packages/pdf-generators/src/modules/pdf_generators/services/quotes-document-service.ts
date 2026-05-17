@@ -1,3 +1,4 @@
+import type { AppContainer } from '@open-mercato/shared/lib/di/container'
 import { BaseDocumentService } from './base-document-service'
 import { formatDate } from '../utils/formatDate'
 
@@ -106,12 +107,13 @@ export class QuotesDocumentService extends BaseDocumentService {
    * @param record - Raw QuoteWidgetRecord from the widget context
    * @param em - MikroORM EntityManager from createRequestContainer()
    */
-  override async fetchData(record: unknown, em: unknown): Promise<unknown> {
+  override async fetchData({ record }: { record: unknown }, { container }: { container: AppContainer }): Promise<unknown> {
     const r = record as QuoteWidgetRecord
     if (!r?.id) return record
 
     try {
-      const conn = (em as any).getConnection() as { execute: (sql: string, params?: unknown[]) => Promise<unknown[]> }
+      const em = container.resolve('em') as any
+      const conn = em.getConnection() as { execute: (sql: string, params?: unknown[]) => Promise<unknown[]> }
       const rows = await conn.execute(
         `SELECT id, name, description, quantity, unit_price_net, unit_price_gross,
                 total_net_amount, total_gross_amount, tax_rate, currency_code
