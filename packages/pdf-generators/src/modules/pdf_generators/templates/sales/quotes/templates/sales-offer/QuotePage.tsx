@@ -29,7 +29,7 @@ const styles = StyleSheet.create({
     fontSize: 8,
     
     fontWeight: 600,
-    color: colors.textMuted,
+    color: colors.muted,
     letterSpacing: 0.5,
     textTransform: 'uppercase',
   },
@@ -52,7 +52,7 @@ const styles = StyleSheet.create({
     fontSize: 8,
     
     fontWeight: 600,
-    color: colors.textMuted,
+    color: colors.muted,
     letterSpacing: 0.5,
     textTransform: 'uppercase',
   },
@@ -77,7 +77,7 @@ const styles = StyleSheet.create({
     fontSize: 9.5,
     
     fontWeight: 400,
-    color: colors.textMuted,
+    color: colors.muted,
     lineHeight: 1.5,
   },
   rowCell: {
@@ -102,7 +102,7 @@ const styles = StyleSheet.create({
     fontSize: 10,
     
     fontWeight: 400,
-    color: colors.textMuted,
+    color: colors.muted,
   },
   totalsValue: {
     fontSize: 10,
@@ -137,7 +137,7 @@ const styles = StyleSheet.create({
     fontSize: 8,
     
     fontWeight: 600,
-    color: colors.textMuted,
+    color: colors.muted,
     letterSpacing: 0.5,
     textTransform: 'uppercase',
     marginBottom: 6,
@@ -146,7 +146,7 @@ const styles = StyleSheet.create({
     fontSize: 10,
     
     fontWeight: 400,
-    color: colors.textMuted,
+    color: colors.muted,
     lineHeight: 1.6,
   },
 })

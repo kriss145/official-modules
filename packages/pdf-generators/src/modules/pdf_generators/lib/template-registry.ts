@@ -1,30 +1,49 @@
 import type { AppContainer } from '@open-mercato/shared/lib/di/container'
 import type { TemplateMeta, TemplateEntry, TemplateRegistry as TemplateRegistryInterface, LoadedTemplate } from './interfaces'
 
+/**
+ * Holds built-in and externally registered PDF templates.
+ * Orchestrates server-side data fetching, normalization, and component loading via a single load() call.
+ */
 class TemplateRegistry implements TemplateRegistryInterface {
   private internal: TemplateEntry[] = []
   private external: TemplateEntry[] = []
 
+  /**
+   * Registers built-in templates shipped with this package.
+   *
+   * @param entries - Template entries produced by document services
+   */
   registerInternal(entries: TemplateEntry[]): void {
     this.internal = entries
   }
 
+  /**
+   * Registers templates contributed by external modules via the generator convention.
+   *
+   * @param entries - Template entries from the auto-generated registry file
+   */
   registerExternal(entries: TemplateEntry[]): void {
     this.external = entries
   }
 
-  getInternal(): TemplateEntry[] {
+  private getInternal(): TemplateEntry[] {
     return this.internal
   }
 
-  getExternal(): TemplateEntry[] {
+  private getExternal(): TemplateEntry[] {
     return this.external
   }
 
-  getAll(): TemplateEntry[] {
+  private getAll(): TemplateEntry[] {
     return [...this.getInternal(), ...this.getExternal()]
   }
 
+  /**
+   * Returns template metadata grouped by source, for use in the templates listing endpoint.
+   *
+   * @returns Object with `internal` and `external` arrays of TemplateMeta
+   */
   listTemplates(): { internal: TemplateMeta[]; external: TemplateMeta[] } {
     const toMeta = ({ id, label, description, category, tags, moduleId }: TemplateEntry): TemplateMeta =>
       ({ id, label, description, category, tags, moduleId })
@@ -35,8 +54,6 @@ class TemplateRegistry implements TemplateRegistryInterface {
   }
 
   /**
-   * Looks up a template entry by ID.
-   *
    * @param id - Template ID
    * @throws Error if template is not registered
    */
@@ -47,10 +64,10 @@ class TemplateRegistry implements TemplateRegistryInterface {
   }
 
   /**
-   * Calls the template's fetchData hook if defined; returns the original record otherwise.
+   * Calls fetchData if defined on the template; returns the original data otherwise.
    *
    * @param id - Template ID
-   * @param record - Raw record from the widget
+   * @param data - Raw data from the widget context
    * @param container - Request-scoped DI container passed to fetchData
    */
   private async enrich({ id, data }: { id: string; data: unknown }, { container }: { container: AppContainer }): Promise<unknown> {
@@ -60,11 +77,11 @@ class TemplateRegistry implements TemplateRegistryInterface {
   }
 
   /**
-   * Fetches data, normalizes the record, and lazy-loads the component in one call.
+   * Fetches data, normalizes it, and lazy-loads the component in one call.
    *
    * @param id - Template ID
-   * @param record - Raw record from the widget (only `id` is required when fetchData is defined)
-   * @param container - Request-scoped DI container; omit to skip fetchData
+   * @param data - Raw data from the widget (only `id` is required when fetchData is defined)
+   * @param container - Request-scoped DI container passed to fetchData
    * @throws Error if template ID is not registered
    */
   async load({ id, data: rawData }: { id: string; data: unknown }, { container }: { container: AppContainer }): Promise<LoadedTemplate> {

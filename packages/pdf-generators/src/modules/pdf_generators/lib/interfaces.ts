@@ -39,9 +39,6 @@ export interface LoadedTemplate {
 export interface TemplateRegistry {
   registerInternal(entries: TemplateEntry[]): void
   registerExternal(entries: TemplateEntry[]): void
-  getInternal(): TemplateEntry[]
-  getExternal(): TemplateEntry[]
-  getAll(): TemplateEntry[]
   listTemplates(): { internal: TemplateMeta[]; external: TemplateMeta[] }
   load(input: { id: string; data: unknown }, ctx: { container: AppContainer }): Promise<LoadedTemplate>
 }

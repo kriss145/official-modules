@@ -28,18 +28,20 @@ export function PreviewPanel({ open, onClose, record, template }: PreviewPanelPr
   const t = useT()
   const [blobUrl, setBlobUrl] = React.useState<string | null>(null)
   const [loading, setLoading] = React.useState(true)
+  const [error, setError] = React.useState<string | null>(null)
 
   React.useEffect(() => {
     if (!open) return
 
     setLoading(true)
     setBlobUrl(null)
+    setError(null)
 
     let objectUrl: string
     let cancelled = false
 
     const run = async () => {
-      const { result } = await apiCall('/api/pdf-generators/generate', {
+      const { result, error: apiError } = await apiCall('/api/pdf-generators/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ template_id: template.id, data: record }),
@@ -48,13 +50,17 @@ export function PreviewPanel({ open, onClose, record, template }: PreviewPanelPr
       })
 
       if (cancelled) return
-      if (result) {
-        objectUrl = URL.createObjectURL(result)
-        setBlobUrl(objectUrl)
+      if (apiError || !result) {
+        setError(t('pdf_generators.preview.error', 'Nie udało się wygenerować dokumentu.'))
+        return
       }
+      objectUrl = URL.createObjectURL(result)
+      setBlobUrl(objectUrl)
     }
 
-    run().catch(() => {}).finally(() => { if (!cancelled) setLoading(false) })
+    run().catch(() => {
+      if (!cancelled) setError(t('pdf_generators.preview.error', 'Nie udało się wygenerować dokumentu.'))
+    }).finally(() => { if (!cancelled) setLoading(false) })
 
     return () => {
       cancelled = true
@@ -75,6 +81,11 @@ export function PreviewPanel({ open, onClose, record, template }: PreviewPanelPr
             {loading && (
               <div className="flex h-full items-center justify-center">
                 <Loader />
+              </div>
+            )}
+            {error && (
+              <div className="flex h-full items-center justify-center">
+                <p className="text-sm text-destructive">{error}</p>
               </div>
             )}
             {blobUrl && <Preview url={blobUrl} />}
