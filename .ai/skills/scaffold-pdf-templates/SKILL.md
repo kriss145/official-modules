@@ -16,7 +16,8 @@ Scaffolds everything needed for a community module (or sandbox module) to regist
 ```
 pdf-generators.ts          ← convention file picked up by `mercato generate registry`
 └── DocumentService        ← extends BaseDocumentService, owns one category of templates
-    ├── normalizeRecord()  ← maps raw widget record → flat typed data
+    ├── fetchData()        ← optional server-side hook: fetches related data via DI container
+    ├── toTemplateData()   ← maps enriched record → flat typed data for the template
     └── registerTemplate() ← lazy-loads the React-PDF component
 
 pdf-templates/
@@ -31,7 +32,7 @@ pdf-templates/
 widgets/injection/
   {{SLOT_WIDGET_ID}}/
     widget.ts              ← InjectionWidgetModule descriptor
-    widget.client.tsx      ← renders <TemplatesList> with record + filter
+    widget.client.tsx      ← renders <TemplatesList> with record + filter + resource
 
 widgets/injection-table.ts ← declares which slot gets the widget
 ```
@@ -43,6 +44,9 @@ widgets/injection-table.ts ← declares which slot gets the widget
 | Variable | Format | Example |
 |----------|--------|---------|
 | `MODULE_ID` | snake_case | `example` |
+| `MODULE_TITLE` | Title Case | `Example` |
+| `RESOURCE_KIND` | framework resource kind | `sales.order` \| `sales.quote` |
+| `MODULE_NAME` | top-level module | `sales` |
 | `CATEGORY` | singular noun, kebab-case | `invoice` \| `quote` \| `shipment` |
 | `TEMPLATE_ID` | kebab-case | `example-invoice` |
 | `TEMPLATE_LABEL` | Title Case | `Example Invoice` |
@@ -51,6 +55,9 @@ widgets/injection-table.ts ← declares which slot gets the widget
 | `RECORD_TYPE_NAME` | PascalCase | `OrderWidgetRecord` |
 
 Ask the user for anything that is ambiguous before writing files.
+
+> **`RESOURCE_KIND`** must match what `ctx.resourceKind` returns in the widget context for that detail page.
+> Ask the user to confirm the value or check the injection slot name: `sales.document.detail.order:tabs` → `sales.order`.
 
 ---
 
@@ -97,7 +104,7 @@ export interface {{PascalTemplateId}}Data {
 }
 ```
 
-**Why**: Keeping the data shape in a separate `types.ts` lets the service's `normalizeRecord()` and the template component share the same type without circular imports.
+**Why**: Keeping the data shape in a separate `types.ts` lets the service's `toTemplateData()` and the template component share the same type without circular imports.
 
 ---
 
@@ -150,26 +157,31 @@ export function {{PascalTemplateId}}Document({ data }: { data: {{PascalTemplateI
 **`pdf-templates/services/{{MODULE_ID}}-{{CATEGORY}}-document-service.ts`**
 
 ```ts
-import { BaseDocumentService } from '@open-mercato/pdf-generators'
+import { BaseDocumentService, formatDate } from '@open-mercato/pdf-generators'
+import type { AppContainer } from '@open-mercato/shared/lib/di/container'
 
 /**
- * Raw record shape passed from the widget context for this document category.
+ * Minimal record passed from the widget context.
+ * Only { id } is required — full data is fetched server-side via fetchData().
  */
 interface {{RECORD_TYPE_NAME}} {
   id: string
-  // Map fields from the widget's `context.record` here
-  [key: string]: unknown
 }
 
 /**
  * Document service for the {{MODULE_TITLE}} module.
+ *
+ * - `readonly id`           globally unique: `{{MODULE_ID}}-{{CATEGORY}}s`
+ * - `readonly module`       top-level module name (e.g. 'sales') — used for grouping on backend page
+ * - `readonly resourceKind` matches ctx.resourceKind in the widget (e.g. 'sales.order')
  *
  * Extend: call this.registerTemplate() in the constructor for each additional template.
  */
 export class {{PascalModuleId}}{{PascalCategory}}DocumentService extends BaseDocumentService {
   readonly id = '{{MODULE_ID}}-{{CATEGORY}}s'
   readonly label = '{{MODULE_TITLE}} {{PascalCategory}}s'
-  readonly moduleId = '{{MODULE_ID}}'
+  readonly module = '{{MODULE_NAME}}'
+  readonly resourceKind = '{{RESOURCE_KIND}}'
 
   constructor() {
     super()
@@ -178,8 +190,9 @@ export class {{PascalModuleId}}{{PascalCategory}}DocumentService extends BaseDoc
       id: '{{TEMPLATE_ID}}',
       label: '{{TEMPLATE_LABEL}}',
       description: 'Short description of what this template produces.',
-      category: '{{CATEGORY}}',
+      documentType: '{{CATEGORY}}',
       tags: ['{{CATEGORY}}', '{{MODULE_ID}}'],
+      note: 'Rendered in the PDF tab on the ... detail page.',
       load: () =>
         import('../templates/{{CATEGORY}}/{{TEMPLATE_ID}}').then(
           (m) => m.{{PascalTemplateId}}Document as unknown as React.ComponentType<{ data: Record<string, unknown> }>
@@ -188,15 +201,32 @@ export class {{PascalModuleId}}{{PascalCategory}}DocumentService extends BaseDoc
   }
 
   /**
-   * Maps a raw widget record into the flat data shape expected by {{CATEGORY}} templates.
+   * Optional: fetch related data before normalization (e.g. line items not in widget context).
+   * The widget only passes { id } — override this to load the full record from the database.
+   *
+   * Remove this method entirely if the widget context already contains all needed data.
    */
-  normalizeRecord(record: unknown): Record<string, unknown> {
-    const r = record as {{RECORD_TYPE_NAME}}
+  override async fetchData({ data }: { data: unknown }, { container }: { container: AppContainer }): Promise<unknown> {
+    const { id } = data as {{RECORD_TYPE_NAME}}
+
+    // Fetch the full record from the database — the widget only passes { id }.
+    // All data required by toTemplateData() must come from here.
+    // const myService = container.resolve('myService')
+    // return myService.retrieve(id)
+
+    throw new Error(`fetchData not implemented — cannot render template without full data (id: ${id})`)
+  }
+
+  /**
+   * Maps the enriched record (returned by fetchData) into the flat shape expected by templates.
+   */
+  toTemplateData({ data }: { data: unknown }): Record<string, unknown> {
+    const r = data as {{RECORD_TYPE_NAME}}
 
     return {
       document: {
         number: String(r.id ?? ''),
-        date: new Date().toLocaleDateString('pl-PL', { day: '2-digit', month: '2-digit', year: 'numeric' }),
+        date: formatDate(new Date().toISOString()),
       },
       seller: { name: '', company: '', email: '' },
       client: { name: '' },
@@ -208,11 +238,12 @@ export class {{PascalModuleId}}{{PascalCategory}}DocumentService extends BaseDoc
 ```
 
 **Why**:
-- `BaseDocumentService` provides `getEntries()`, `registerTemplate()`, and the `formatDate()` helper. Never reimplement these.
-- `readonly id` must be globally unique across all services — use `{{MODULE_ID}}-{{CATEGORY}}s` as the convention.
-- `readonly moduleId` is used by `<TemplatesList filter={{ moduleId }}>` to scope which templates appear in the widget.
-- The `load` function must return a **lazy import** (`() => import(…)`) — templates are never eagerly loaded, keeping bundle size small.
-- `normalizeRecord` receives the raw `context.record` from the widget context. Shape it to match your `{{PascalTemplateId}}Data` type.
+- `BaseDocumentService` provides `getEntries()` and `registerTemplate()`. Never reimplement these.
+- `readonly module` + `readonly resourceKind` replace the old `moduleId` field. `module` is used for grouping on the backend page; `resourceKind` must match `ctx.resourceKind` from the framework (e.g. `'sales.order'`).
+- `fetchData` is the server-side hook that loads all data needed for the template. The widget passes only `{ id }` — `fetchData` is responsible for fetching the full record. It always runs before `toTemplateData()`. Never pass template data through the widget context — always fetch server-side.
+- `toTemplateData` replaces the old `normalizeRecord`. It receives the enriched data from `fetchData` and maps it to the template shape.
+- `formatDate` is imported from `@open-mercato/pdf-generators` — it is **not** a method on `BaseDocumentService`.
+- `load` must be a **function returning a dynamic import** — never a static import.
 
 ---
 
@@ -267,7 +298,7 @@ interface WidgetContext {
   kind: string
   resourceId: string
   resourceKind: string
-  record: Record<string, unknown>
+  record: { id: string }
 }
 
 export default function {{PascalWidgetName}}Widget({ context }: InjectionWidgetComponentProps) {
@@ -279,8 +310,9 @@ export default function {{PascalWidgetName}}Widget({ context }: InjectionWidgetC
   return (
     <div className="border rounded-lg p-4">
       <TemplatesList
-        record={record}
-        filter={{ category: '{{CATEGORY}}', moduleId: '{{MODULE_ID}}' }}
+        record={{ id: record.id }}
+        filter={{ resourceKind: ctx.resourceKind }}
+        resource={{ kind: ctx.resourceKind, id: ctx.resourceId }}
       />
     </div>
   )
@@ -289,8 +321,10 @@ export default function {{PascalWidgetName}}Widget({ context }: InjectionWidgetC
 
 **Why**:
 - `features: ['pdf_generators.view']` gates the tab — users without this feature won't see it.
-- `filter={{ category, moduleId }}` scopes the list to only templates registered by this module for this category. Without the filter all registered PDF templates would appear.
-- The widget is split into `widget.ts` (server-safe descriptor) and `widget.client.tsx` (`'use client'` boundary) — this is the standard UMES pattern for injection widgets.
+- `filter={{ resourceKind: ctx.resourceKind }}` scopes the list to templates registered for this resource kind. It's passed directly from the widget context — no hardcoding of entity names needed.
+- `record={{ id: record.id }}` passes only the ID to the server — full data is fetched server-side via `fetchData()` in the document service.
+- `resource={{ kind, id }}` passes context to `PreviewPanel` so `POST /generate` receives `resource_kind` and `resource_id`, enabling logging, event emission, and future PDF history (Phase 5).
+- The widget is split into `widget.ts` (server-safe descriptor) and `widget.client.tsx` (`'use client'` boundary) — standard UMES pattern.
 
 ---
 
@@ -310,11 +344,11 @@ export default function {{PascalWidgetName}}Widget({ context }: InjectionWidgetC
 
 Common slot IDs for PDF tabs:
 
-| Context | Slot ID |
-|---------|---------|
-| Sales order detail | `sales.document.detail.order:tabs` |
-| Sales quote detail | `sales.document.detail.quote:tabs` |
-| Shipment detail | `sales.document.detail.shipment:tabs` |
+| Context | Slot ID | resourceKind |
+|---------|---------|-------------|
+| Sales order detail | `sales.document.detail.order:tabs` | `sales.order` |
+| Sales quote detail | `sales.document.detail.quote:tabs` | `sales.quote` |
+| Shipment detail | `sales.document.detail.shipment:tabs` | `sales.shipment` |
 
 **Why**: The injection-table is how the widget gets mounted into the host page. Without this entry the widget component exists but is never rendered anywhere.
 
@@ -336,7 +370,8 @@ yarn dev
 Then navigate to a record that renders the slot (e.g. a sales order detail page) and confirm:
 1. The **PDF tab** appears in the tab bar.
 2. The tab shows the template name from `registerTemplate({ label })`.
-3. Clicking **Generate** produces a PDF without console errors.
+3. Clicking a template card opens the **preview dialog** with the rendered PDF.
+4. Clicking **Download PDF** triggers `POST /generate` and downloads the file.
 
 ---
 
@@ -345,7 +380,7 @@ Then navigate to a record that renders the slot (e.g. a sales order detail page)
 | File | Purpose |
 |------|---------|
 | `pdf-generators.ts` | Auto-discovery entry point for `mercato generate registry` |
-| `pdf-templates/services/…-document-service.ts` | Service: template registration + record normalization |
+| `pdf-templates/services/…-document-service.ts` | Service: template registration, data fetching, normalization |
 | `pdf-templates/templates/{{CATEGORY}}/{{TEMPLATE_ID}}/types.ts` | TypeScript data shape for the template |
 | `pdf-templates/templates/{{CATEGORY}}/{{TEMPLATE_ID}}/index.tsx` | React-PDF template component |
 | `widgets/injection/{{SLOT_WIDGET_ID}}/widget.ts` | Widget descriptor |
@@ -359,6 +394,9 @@ Then navigate to a record that renders the slot (e.g. a sales order detail page)
 - The `theme` import (`@open-mercato/pdf-generators/…/shared/theme`) **must be a bare side-effect import** — it registers fonts. Do it once, at the top of the template `index.tsx`.
 - `load` in `registerTemplate` must be a **function returning a dynamic import** — never a static import, or the whole template bundle loads eagerly.
 - `id` in `BaseDocumentService` must be unique globally. Convention: `{{MODULE_ID}}-{{CATEGORY}}s`.
+- `resourceKind` must match exactly what `ctx.resourceKind` returns in the widget context for that detail page. Confirm with the user or derive from the injection slot name.
 - `pdf-generators.ts` must export `templates` as a named export and a default export.
 - Widget `features` must include `pdf_generators.view` — the tab must be gated on the pdf-generators module permission.
+- Pass only `{ id: record.id }` to `TemplatesList record` prop — full data fetching belongs in `fetchData()` server-side.
 - Never import `@react-pdf/renderer` in `widget.client.tsx` — rendering happens inside the template component loaded lazily by `TemplatesList`.
+- `POST /preview` (iframe) and `POST /generate` (download) are separate endpoints. Preview has zero side effects; generate triggers logging and events. Never conflate them.
