@@ -8,7 +8,7 @@
 // `.ai/runs/2026-05-27-dev-mode-package-watch-consolidation/PLAN.md`.
 //
 // Behavior parity with `packages/<pkg>/watch.mjs` (which delegates to
-// `scripts/watch.mjs`'s `low-memory` mode):
+// `scripts/package-dev/watch.mjs`'s `low-memory` mode):
 //   - one-shot `esbuild.build` per change, no persistent context held idle;
 //   - re-globs entry points before every rebuild so brand-new files emit;
 //   - 100 ms per-package debounce coalesces editor save flurries;
@@ -19,7 +19,7 @@
 // previous Turbo-based per-package watcher path (see `package.json`).
 //
 // Note: this var is distinct from `OM_PACKAGE_WATCH_MODE` (see
-// `scripts/watch.mjs`), which only takes effect under the legacy path and
+// `scripts/package-dev/watch.mjs`), which only takes effect under the legacy path and
 // toggles per-package `low-memory` vs `persistent` modes. The consolidated
 // watcher always runs in the low-memory equivalent. See
 // `apps/docs/docs/appendix/troubleshooting.mdx` for the public reference.

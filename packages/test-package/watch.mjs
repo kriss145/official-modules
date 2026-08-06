@@ -1,4 +1,4 @@
-import { watch } from '../../scripts/watch.mjs'
+import { watch } from '../../scripts/package-dev/watch.mjs'
 import { dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
