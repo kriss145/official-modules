@@ -38,6 +38,7 @@ published-app/
 .vscode/
 .claude/
 .codex/
+.agents
 
 apps/sandbox/data
 apps/sandbox/storage/attachments
