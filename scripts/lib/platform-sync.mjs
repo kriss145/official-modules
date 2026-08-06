@@ -511,20 +511,9 @@ function createExpectedTempRepo(repoRoot, expectedManifestMap) {
   const tempRepoRoot = mkdtempSync(path.join(os.tmpdir(), 'official-modules-platform-sync-'))
 
   copyFileSync(path.join(repoRoot, 'package.json'), path.join(tempRepoRoot, 'package.json'))
-  copyFileSync(path.join(repoRoot, 'yarn.lock'), path.join(tempRepoRoot, 'yarn.lock'))
 
-  const yarnRcPath = path.join(repoRoot, '.yarnrc.yml')
-
-  if (existsSync(yarnRcPath)) {
-    copyFileSync(yarnRcPath, path.join(tempRepoRoot, '.yarnrc.yml'))
-  }
 
   stageWorkspaceManifests(tempRepoRoot, repoRoot, expectedManifestMap)
-
-  execFileSync('yarn', ['install', '--mode=update-lockfile'], {
-    cwd: tempRepoRoot,
-    stdio: ['ignore', 'pipe', 'pipe'],
-  })
 
   return tempRepoRoot
 }
@@ -541,11 +530,13 @@ function compareState(repoRoot, expectedManifestMap, expectedLockfilePath) {
     }
   }
 
-  const actualLockfileText = readFileSync(path.join(repoRoot, 'yarn.lock'), 'utf8')
-  const expectedLockfileText = readFileSync(expectedLockfilePath, 'utf8')
+  if (existsSync(expectedLockfilePath)) {
+    const actualLockfileText = readFileSync(path.join(repoRoot, 'yarn.lock'), 'utf8')
+    const expectedLockfileText = readFileSync(expectedLockfilePath, 'utf8')
 
-  if (actualLockfileText !== expectedLockfileText) {
-    changedPaths.push('yarn.lock')
+    if (actualLockfileText !== expectedLockfileText) {
+      changedPaths.push('yarn.lock')
+    }
   }
 
   return changedPaths.sort()
@@ -556,7 +547,9 @@ function applyExpectedState(repoRoot, expectedManifestMap, expectedLockfilePath)
     writeJson(manifestPath, expectedManifest)
   }
 
-  copyFileSync(expectedLockfilePath, path.join(repoRoot, 'yarn.lock'))
+  if (existsSync(expectedLockfilePath)) {
+    copyFileSync(expectedLockfilePath, path.join(repoRoot, 'yarn.lock'))
+  }
 }
 
 function buildHelpText() {

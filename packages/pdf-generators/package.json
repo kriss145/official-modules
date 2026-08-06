@@ -4,9 +4,15 @@
   "type": "module",
   "description": "Generates PDF sales documents.",
   "main": "./dist/index.js",
+  "files": [
+    "dist",
+    "src",
+    "README.md"
+  ],
   "scripts": {
     "build": "node build.mjs",
     "watch": "node watch.mjs",
+    "dev:yalc": "node yalc-dev.mjs",
     "test": "jest --config jest.config.cjs",
     "typecheck": "tsc --noEmit"
   },
@@ -68,8 +74,8 @@
     "react-is": "^19.0.0"
   },
   "devDependencies": {
-    "@open-mercato/shared": "0.6.4",
-    "@open-mercato/ui": "0.6.4",
+    "@open-mercato/shared": "0.6.6",
+    "@open-mercato/ui": "0.6.6",
     "@types/jest": "^30.0.0",
     "@types/react": "^19.0.0",
     "esbuild": "^0.25.0",
@@ -77,6 +83,7 @@
     "jest": "^30.2.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
+    "react-is": "^19.0.0",
     "ts-jest": "^29.4.6"
   },
   "publishConfig": {

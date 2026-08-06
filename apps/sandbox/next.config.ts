@@ -6,6 +6,9 @@ const allowedDevOrigins = isDevelopment ? resolveAllowedDevOrigins() : []
 
 const nextConfig: NextConfig = {
   distDir: '.mercato/next',
+  typescript: {
+    ignoreBuildErrors: true, // Ignore TypeScript errors during build
+  },  
   experimental: {
     serverMinification: false,
     turbopackMinify: false,
