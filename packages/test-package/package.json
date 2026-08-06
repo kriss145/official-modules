@@ -4,8 +4,8 @@
   "type": "module",
   "main": "./dist/index.js",
   "scripts": {
-    "build": "node build.mjs",
-    "watch": "node watch.mjs",
+    "build": "node ../../cli/bin.mjs module build .",
+    "watch": "node ../../cli/bin.mjs module watch .",
     "test": "jest --config jest.config.cjs",
     "typecheck": "tsc --noEmit"
   },

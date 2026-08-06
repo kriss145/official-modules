@@ -2,7 +2,7 @@
 // Dev-mode watch-scope resolution.
 //
 // Lets developers narrow which workspace packages the consolidated package
-// watcher (`scripts/watch-packages.mjs`) tracks, instead of always watching
+// watcher (`cli/lib/watch-packages.mjs`) tracks, instead of always watching
 // every package. Four modes are supported (see `apps/docs/docs/appendix/
 // troubleshooting.mdx`):
 //

@@ -7,8 +7,8 @@
 // from ~1.13 GB (Turbo + 18 child watchers) to ~125 MB. See
 // `.ai/runs/2026-05-27-dev-mode-package-watch-consolidation/PLAN.md`.
 //
-// Behavior parity with `packages/<pkg>/watch.mjs` (which delegates to
-// `scripts/package-dev/watch.mjs`'s `low-memory` mode):
+// Behavior parity with `cli/lib/watch.mjs`'s `low-memory` mode
+// (invoked per-package by `mercato-modules module watch <pkg>`):
 //   - one-shot `esbuild.build` per change, no persistent context held idle;
 //   - re-globs entry points before every rebuild so brand-new files emit;
 //   - 100 ms per-package debounce coalesces editor save flurries;
@@ -19,7 +19,7 @@
 // previous Turbo-based per-package watcher path (see `package.json`).
 //
 // Note: this var is distinct from `OM_PACKAGE_WATCH_MODE` (see
-// `scripts/package-dev/watch.mjs`), which only takes effect under the legacy path and
+// `cli/lib/watch.mjs`), which only takes effect under the legacy path and
 // toggles per-package `low-memory` vs `persistent` modes. The consolidated
 // watcher always runs in the low-memory equivalent. See
 // `apps/docs/docs/appendix/troubleshooting.mdx` for the public reference.
@@ -29,7 +29,7 @@ import { glob } from 'glob'
 import { existsSync, readFileSync, readdirSync, watch as fsWatch, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { createAtomicWritePlugin } from './lib/add-js-extension.mjs'
+import { createAtomicWritePlugin } from './add-js-extension.mjs'
 import {
   AUTO_EXPAND_INTERVAL_MS,
   describeWatchMode,
@@ -42,7 +42,8 @@ import {
 const REBUILD_DEBOUNCE_MS = 100
 const TOUCHABLE_GENERATED_PATTERN = /\.generated(?:\.[a-z0-9]+)?(?:\.ts|\.checksum)$/i
 const here = fileURLToPath(new URL('.', import.meta.url))
-const defaultRepoRoot = join(here, '..')
+// `here` is cli/lib/ → repo root is two levels up.
+const defaultRepoRoot = join(here, '..', '..')
 
 export function isWatchedSourceFile(filename) {
   if (!filename) return false

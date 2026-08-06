@@ -10,10 +10,13 @@
     "apps/*",
     "packages/*"
   ],
+  "bin": {
+    "mercato-modules": "./cli/bin.mjs"
+  },
   "scripts": {
     "build:packages": "turbo run build --filter='./packages/*'",
     "build": "yarn build:packages",
-    "dev": "node scripts/watch-packages.mjs",
+    "dev": "mercato-modules module watch",
     "typecheck": "turbo run typecheck --filter='./packages/*'",
     "test": "turbo run test --filter='./packages/*'",
     "test:integration": "npx playwright test --config .ai/qa/tests/playwright.config.ts"

@@ -10,9 +10,9 @@
     "README.md"
   ],
   "scripts": {
-    "build": "node build.mjs",
-    "watch": "node watch.mjs",
-    "dev:yalc": "node yalc-dev.mjs",
+    "build": "node ../../cli/bin.mjs module build .",
+    "watch": "node ../../cli/bin.mjs module watch .",
+    "dev:yalc": "node ../../cli/bin.mjs module dev .",
     "test": "jest --config jest.config.cjs",
     "typecheck": "tsc --noEmit"
   },

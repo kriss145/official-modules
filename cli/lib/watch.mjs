@@ -2,7 +2,7 @@ import * as esbuild from 'esbuild'
 import { glob } from 'glob'
 import { existsSync, readFileSync, readdirSync, watch as fsWatch, writeFileSync } from 'node:fs'
 import { basename, dirname, join } from 'node:path'
-import { createAtomicWritePlugin } from '../lib/add-js-extension.mjs'
+import { createAtomicWritePlugin } from './add-js-extension.mjs'
 
 const TOUCHABLE_GENERATED_PATTERN = /\.generated(?:\.[a-z0-9]+)?(?:\.ts|\.checksum)$/i
 
